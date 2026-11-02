@@ -378,7 +378,7 @@ http.createServer(async (req, res) => {
         delete c.adKey; delete c.pin; delete c.secret;
         wr('config.json', c);
       }
-      const pub = { addonSet: !!c.addon, osSet: !!(c.osKey && c.osUser && c.osPass), langs: c.langs || 'tr,en', debug: DEBUG };
+      const pub = { addonSet: !!c.addon, osSet: !!(c.osKey && c.osUser && c.osPass), osQuery: !!c.osKey, langs: c.langs || 'tr,en', debug: DEBUG };
       return json(res, 200, user.role === 'admin' ? { ...pub, addon: c.addon || '', osUser: c.osUser || '' } : pub);
     }
     if (pn === '/api/addon/test' && POST) {
@@ -456,6 +456,35 @@ http.createServer(async (req, res) => {
       const r = await osApi('/subtitles?' + p);
       if (r.status !== 200) return json(res, r.status, { error: r.data.message || 'OpenSubtitles araması başarısız (API anahtarı?)' });
       return json(res, 200, (r.data.data || []).map(d => ({ file_id: d.attributes.files?.[0]?.file_id, lang: d.attributes.language, release: d.attributes.release, downloads: d.attributes.download_count })).filter(x => x.file_id));
+    }
+    if (pn === '/api/osmeta' && POST) {                // toplu: IMDb puanı + Türkçe altyazı var mı (OpenSubtitles /query)
+      const b = await readBody(req);
+      const ids = [...new Set((b.ids || []).map(x => String(x).replace(/^tt/, '')).filter(x => /^\d+$/.test(x)))].slice(0, 50);
+      if (!ids.length) return json(res, 200, { map: {} });
+      const out = {};
+      await Promise.all(ids.map(async id => {
+        try {
+          const r = await osApi('/subtitles/query?imdb_id=' + id + '&limit=40');
+          if (r.status !== 200) return;
+          const attrs = (r.data.data || []).map(d => d.attributes || {});
+          let rating = 0;
+          for (const a of attrs) { const v = parseFloat(a.imdb_stars); if (v > rating) rating = v; }
+          const tr = attrs.some(a => (a.languages || []).some(l => /^tr/i.test(String(l))));
+          out[id] = { rating: rating || null, tr };
+        } catch {}
+      }));
+      return json(res, 200, { map: out });
+    }
+    if (pn === '/api/cinemeta') {                      // meta eksikse (puan/tür/altyazı) tam meta çek
+      const type = url.searchParams.get('type'), id = String(url.searchParams.get('id') || '');
+      if (!/^(movie|series)$/.test(type) || !/^tt\d+$/.test(id)) return json(res, 400, { error: 'Geçersiz istek' });
+      try {
+        const r = await fetch(`${CINE}/meta/${type}/${id}.json`, { headers: { Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
+        const d = await r.json().catch(() => ({}));
+        const m = d.meta;
+        if (!m) return json(res, 404, { error: 'Bulunamadı' });
+        return json(res, 200, { imdbRating: m.imdbRating || '', year: m.year || '', genres: m.genres || [], subtitles: m.subtitles || [] });
+      } catch (e) { return json(res, 502, { error: 'Meta alınamadı' }); }
     }
     if (pn === '/api/sub') {
       const body = { file_id: +url.searchParams.get('file_id') };

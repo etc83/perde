@@ -290,10 +290,19 @@ function toggleLib(id) {
 function setNav(v) { view = v; $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 $$('nav button').forEach(b => b.onclick = () => { $('#q').value = ''; ({ home, lib, set: settings, usr: usersView })[b.dataset.v](); });
 
+let gridHtml = '';
+function renderGrid() { gridHtml = grid(applyFilters(RESULTS)); }
+function updateGridDom() {
+  const g = $('#fgrid'); if (!g) return;
+  g.innerHTML = gridHtml || '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>';
+}
 function card(m) {
   META[m.id] = m;
   const f = frac(m.id), on = inLib(m.id);
-  const sub = [m.releaseInfo || m.year, m.imdbRating ? '★ ' + m.imdbRating : ''].filter(Boolean).join(' · ');
+  const om = OSMETA[osKey(m)] || {};
+  const rt = metaRate(m) || om.rating || 0;
+  const tr = om.tr == null ? '' : (om.tr ? ' · CC·TR' : '');
+  const sub = [m.releaseInfo || m.year, rt ? '★ ' + rt : ''].filter(Boolean).join(' · ') + tr;
   return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
     <button class="pb" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
     <button class="add${on ? ' on' : ''}" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
@@ -325,6 +334,7 @@ async function search(q) {
     if (view !== '' || LASTQ !== q) return;
     RESULTS = [...(mv.metas || []), ...(sr.metas || [])];
     renderResults();
+    fetchOsMeta(RESULTS);
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 let st;
@@ -335,9 +345,29 @@ let RESULTS = [], LASTQ = '', fOpen = false;
 const FY = { min: 1950, max: new Date().getFullYear() + 1 };
 const FDEF = () => ({ type: 'all', yearFrom: FY.min, yearTo: FY.max, genres: [], minRating: 0, sub: 'any', sort: 'rel' });
 let FILTERS = FDEF();
-const subHasTr = m => (m.subtitles || []).some(s => { const c = String(s || '').toLowerCase().replace(/-.*$/, ''); return c === 'tr' || c === 'tur'; });
+const OSMETA = {};        // imdb id -> { rating, tr } (OpenSubtitles sorgusuyla doldurulur)
+let osBusy = 0;
+const osKey = m => String(m.imdb || '').replace(/^tt/, '');
+const subHasTr = m => { const om = OSMETA[osKey(m)]; if (om && om.tr != null) return om.tr; return (m.subtitles || []).some(s => { const c = String(s || '').toLowerCase().replace(/-.*$/, ''); return c === 'tr' || c === 'tur'; }); };
 const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
-const metaRate = m => parseFloat(String(m.imdbRating).replace(',', '.')) || 0;
+const metaRate = m => parseFloat(String(m.imdbRating).replace(',', '.')) || (OSMETA[osKey(m)]?.rating) || 0;
+async function fetchOsMeta(list) {
+  if (!cfg.osQuery) return;
+  const todo = [...new Set(list.map(osKey).filter(id => /^\d+$/.test(id) && !(id in OSMETA)))];
+  if (!todo.length) return;
+  for (const id of todo) OSMETA[id] = null;   // bekleniyor işareti
+  osBusy++; refreshFiltered();
+  try {
+    for (let i = 0; i < todo.length; i += 40) {
+      const chunk = todo.slice(i, i + 40);
+      try {
+        const { map } = await post('/api/osmeta', { ids: chunk });
+        for (const [k, v] of Object.entries(map || {})) OSMETA[k] = v;
+      } catch {}
+      refreshFiltered();   // parçalar halinde sonuçlar anında güncellensin
+    }
+  } finally { osBusy--; refreshFiltered(); }
+}
 function activeFiltCount(f) {
   let n = 0;
   if (f.type !== 'all') n++;
@@ -353,8 +383,9 @@ function applyFilters(list) {
     (f.type === 'all' || m.type === f.type) &&
     (() => { const y = metaYear(m); return !y || (y >= f.yearFrom && y <= f.yearTo); })() &&
     (!f.genres.length || f.genres.some(g => (m.genres || []).includes(g))) &&
-    (f.minRating <= 0 || metaRate(m) >= f.minRating) &&
-    (f.sub === 'any' || (f.sub === 'tr' ? subHasTr(m) : !subHasTr(m)))
+    // puan/altyazı bilgisi OpenSubtitles'tan gelinceye kadar bekleyen içerikleri eleme, veri gelince liste anında güncellenir
+    (f.minRating <= 0 || OSMETA[osKey(m)] === null || metaRate(m) >= f.minRating) &&
+    (f.sub === 'any' || OSMETA[osKey(m)] === null || (f.sub === 'tr' ? subHasTr(m) : !subHasTr(m)))
   );
   const by = { rel: (a, b) => 0, rating: (a, b) => metaRate(b) - metaRate(a), year: (a, b) => metaYear(b) - metaYear(a), az: (a, b) => a.name.localeCompare(b.name, 'tr') };
   if (by[f.sort]) r = [...r].sort(by[f.sort]);
@@ -398,26 +429,35 @@ function renderFilterPanel() {
     </div>`;
   $('.fbar').after(el);
   el.addEventListener('click', e => {
-    const chip = e.target.closest('.fchip'); if (!chip) return;
+    const chip = e.target.closest('.fchip'); if (!chip) return;   // panel açık kalır, yalnızca seçim güncellenir
     const k = chip.parentElement.dataset.k, v = chip.dataset.v;
-    if (k === 'genres') { const g = v; f.genres.includes(g) ? f.genres.splice(f.genres.indexOf(g), 1) : f.genres.push(g); chip.classList.toggle('on'); }
-    else { f[k] = k === 'type' || k === 'sub' ? v : v; chip.parentElement.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c === chip)); }
-    renderResults();
+    if (k === 'genres') { f.genres.includes(v) ? f.genres.splice(f.genres.indexOf(v), 1) : f.genres.push(v); chip.classList.toggle('on'); }
+    else { f[k] = v; chip.parentElement.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c === chip)); }
+    refreshFiltered();
   });
   const yf = $('#fyf'), yt = $('#fyto');
   const ysync = () => {
     if (+yf.value > +yt.value) { if (document.activeElement === yf) yt.value = yf.value; else yf.value = yt.value; }
     f.yearFrom = +yf.value; f.yearTo = +yt.value;
     $('#fyo').textContent = (f.yearFrom === FY.min && f.yearTo === FY.max) ? 'Tüm yıllar' : `${f.yearFrom} – ${f.yearTo}`;
-    renderResults();
+    refreshFiltered();
   };
   yf.oninput = ysync; yt.oninput = ysync;
   const rt = $('#frt');
-  rt.oninput = () => { f.minRating = +rt.value; $('#frv').textContent = f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'; renderResults(); };
-  $('#fclear').onclick = () => { FILTERS = FDEF(); renderFilterPanel(); renderResults(); };
+  rt.oninput = () => { f.minRating = +rt.value; $('#frv').textContent = f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'; refreshFiltered(); };
+  $('#fclear').onclick = () => { FILTERS = FDEF(); renderResults(); renderFilterPanel(); };
+}
+function refreshFiltered() {
+  renderGrid();
+  updateGridDom();
+  const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
+  const rc = $('#fresCount'); if (rc) rc.textContent = RESULTS.length ? `${list.length} / ${RESULTS.length} sonuç` : '';
+  const btn = $('#fbtn'); if (btn) btn.innerHTML = `⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}`;
+  const fc = $('#fcount'); if (fc) fc.textContent = (n ? `${n} etkin filtre` : '') + (osBusy ? ' · altyazı/puan bilgisi alınıyor…' : '');
 }
 function renderResults() {
   if (view !== '') return;
+  renderGrid();
   const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
   const barHtml = `
     <div class="fbar">
@@ -431,10 +471,10 @@ function renderResults() {
       </select></span>
     </div>`;
   if (!RESULTS.length) { $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2><p class="mute">“${esc(LASTQ)}” için sonuç yok.</p>`; return; }
-  $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2>${barHtml}<br>${list.length ? grid(list) : '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>'}`;
+  $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2>${barHtml}<div id="fgrid">${gridHtml || '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>'}</div>`;
   $('#fbtn').onclick = () => { fOpen = !fOpen; fOpen ? renderFilterPanel() : $('#fpanel')?.remove(); $('#fbtn').setAttribute('aria-expanded', fOpen); };
-  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; renderResults(); };
-  const fc = $('#fcount'); if (fc && fOpen) fc.textContent = n ? `${n} etkin filtre` : '';
+  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; renderResults(); if (fOpen) renderFilterPanel(); };
+  if (fOpen) renderFilterPanel();
 }
 
 function lib() {
