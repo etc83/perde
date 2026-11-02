@@ -6,6 +6,7 @@
     "local": "LOCAL=1 node server.js"
   },
   "dependencies": {
-    "hls.js": "^1.5.17"
+    "hls.js": "^1.5.17",
+    "jsdom": "^29.1.1"
   }
 }
