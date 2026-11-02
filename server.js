@@ -457,7 +457,7 @@ http.createServer(async (req, res) => {
       if (r.status !== 200) return json(res, r.status, { error: r.data.message || 'OpenSubtitles araması başarısız (API anahtarı?)' });
       return json(res, 200, (r.data.data || []).map(d => ({ file_id: d.attributes.files?.[0]?.file_id, lang: d.attributes.language, release: d.attributes.release, downloads: d.attributes.download_count })).filter(x => x.file_id));
     }
-    if (pn === '/api/osmeta' && POST) {                // toplu: IMDb puanı + Türkçe altyazı var mı (OpenSubtitles /query)
+    if (pn === '/api/osmeta' && POST) {                // toplu: IMDb puanı (OpenSubtitles /subtitles/query)
       const b = await readBody(req);
       const ids = [...new Set((b.ids || []).map(x => String(x).replace(/^tt/, '')).filter(x => /^\d+$/.test(x)))].slice(0, 50);
       if (!ids.length) return json(res, 200, { map: {} });
@@ -466,11 +466,9 @@ http.createServer(async (req, res) => {
         try {
           const r = await osApi('/subtitles/query?imdb_id=' + id + '&limit=40');
           if (r.status !== 200) return;
-          const attrs = (r.data.data || []).map(d => d.attributes || {});
           let rating = 0;
-          for (const a of attrs) { const v = parseFloat(a.imdb_stars); if (v > rating) rating = v; }
-          const tr = attrs.some(a => (a.languages || []).some(l => /^tr/i.test(String(l))));
-          out[id] = { rating: rating || null, tr };
+          for (const a of (r.data.data || []).map(d => d.attributes || {})) { const v = parseFloat(a.imdb_stars); if (v > rating) rating = v; }
+          out[id] = { rating: rating || null };
         } catch {}
       }));
       return json(res, 200, { map: out });
