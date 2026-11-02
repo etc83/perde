@@ -1,4 +1,4 @@
-# Perde <img width="160" height="180" alt="perde" src="https://github.com/user-attachments/assets/1889084f-bc57-4a37-9208-47d84fba8023" />
+# Perde <img width="60" height="80" alt="perde" src="https://github.com/user-attachments/assets/1889084f-bc57-4a37-9208-47d84fba8023" />
 
 
 macOS'ta yerel çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid.
