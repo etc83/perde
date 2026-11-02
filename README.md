@@ -1,7 +1,7 @@
 # <img width="64" height="64" alt="theatre-curtains" src="https://github.com/user-attachments/assets/6b944a07-c13d-4d94-8ab7-8e967382a5a8" /> Perde 
 
 
-macOS'ta yerel çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid.
+Node.js ile yerelde çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid + Opensubtitles.
 
 ## Kurulum
 1. `brew install node ffmpeg`
