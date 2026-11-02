@@ -186,9 +186,7 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .fsort select{width:auto;padding:.35rem .5rem}
 .fpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.4rem 1.2rem}
 .fgroup label.fl{margin:.5rem 0 .15rem}
-.frng{display:flex;align-items:center;gap:.6rem}
-.frng input[type=range]{flex:1;width:auto;padding:0;min-height:0;border:0;background:none;accent-color:var(--lamp)}
-.frng output{min-width:2.5rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.fpanel select{width:100%}
 .fchips{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.2rem}
 .fchip{padding:.3rem .75rem;border-radius:99px;font-size:.85rem;background:var(--bg)}
 .fchip.on{background:var(--lamp);border-color:var(--lamp);color:#1c1a24;font-weight:600}
@@ -332,9 +330,29 @@ async function search(q) {
     const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top/search=${e}.json`), px(`${CINE}/catalog/series/top/search=${e}.json`)]);
     if (view !== '' || LASTQ !== q) return;
     RESULTS = [...(mv.metas || []), ...(sr.metas || [])];
+    // Cinemeta meta listelerinde imdb id bulunmaz → IMDb ID'lerini ve puanı /api/cinemeta ile tamamla
+    await enrichImdb(RESULTS);
+    if (view !== '' || LASTQ !== q) return;
     renderResults();
     fetchOsMeta(RESULTS);
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+const ENRICH = {};   // v3uid -> { imdb, imdbRating }
+async function enrichImdb(list) {
+  const todo = list.filter(m => m.id && !m.imdb && !(m.id in ENRICH));
+  if (!todo.length) { for (const m of list) if (ENRICH[m.id]) Object.assign(m, ENRICH[m.id]); return; }
+  await Promise.all(todo.map(async m => {
+    const type = m.type === 'series' ? 'series' : 'movie';
+    let rec = null;
+    try {
+      const d = await px(`${CINE}/meta/${type}/${m.id}.json`);
+      const im = String(d.meta?.imdbRating || '').replace(',', '.');
+      rec = { imdb: d.meta?.imdb || '', imdbRating: im && parseFloat(im) > 0 ? im : '' };
+    } catch { rec = { imdb: '', imdbRating: '' }; }
+    ENRICH[m.id] = rec;
+    Object.assign(m, rec);
+  }));
+  for (const m of list) if (!m.imdb && ENRICH[m.id]) Object.assign(m, ENRICH[m.id]);
 }
 let st;
 $('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 ? search(v) : (!v && home()), 400); };
@@ -417,8 +435,11 @@ function renderFilterPanel() {
         <option value="0"${!f.year ? ' selected' : ''}>Tüm yıllar</option>
         ${yearPool().map(y => `<option value="${y}"${f.year === y ? ' selected' : ''}>${y}</option>`).join('')}
       </select>
-      <label class="fl" for="frt">En az IMDb puanı: <output id="frv">${f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'}</output></label>
-      <div class="frng"><input id="frt" type="range" min="0" max="9" step="0.5" value="${f.minRating}"></div>
+      <label class="fl" for="frt">En az IMDb puanı</label>
+      <select id="frt">
+        <option value="0"${!f.minRating ? ' selected' : ''}>Fark etmez</option>
+        ${[1, 2, 3, 4, 5, 6, 7, 8].map(r => `<option value="${r}"${f.minRating === r ? ' selected' : ''}>${r}+</option>`).join('')}
+      </select>
     </div>
     ${tg.length ? `<div class="fgroup">
       <label class="fl">Tür (kategori)</label>
@@ -437,8 +458,7 @@ function renderFilterPanel() {
     refreshFiltered();
   });
   $('#fyear').onchange = e => { f.year = +e.target.value || 0; refreshFiltered(); };
-  const rt = $('#frt');
-  rt.oninput = () => { f.minRating = +rt.value; $('#frv').textContent = f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'; refreshFiltered(); };
+  $('#frt').onchange = e => { f.minRating = +e.target.value || 0; refreshFiltered(); };
   $('#fclear').onclick = () => { FILTERS = FDEF(); renderResults(); renderFilterPanel(); };
 }
 function refreshFiltered() {
