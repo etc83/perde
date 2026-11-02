@@ -301,8 +301,7 @@ function card(m) {
   const f = frac(m.id), on = inLib(m.id);
   const om = OSMETA[osKey(m)] || {};
   const rt = metaRate(m) || om.rating || 0;
-  const tr = om.tr == null ? '' : (om.tr ? ' · CC·TR' : '');
-  const sub = [m.releaseInfo || m.year, rt ? '★ ' + rt : ''].filter(Boolean).join(' · ') + tr;
+  const sub = [m.releaseInfo || m.year, rt ? '★ ' + rt : ''].filter(Boolean).join(' · ');
   return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
     <button class="pb" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
     <button class="add${on ? ' on' : ''}" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
@@ -342,15 +341,15 @@ $('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st =
 
 // ---------- Arama filtreleri ----------
 let RESULTS = [], LASTQ = '', fOpen = false;
-const FY = { min: 1950, max: new Date().getFullYear() + 1 };
-const FDEF = () => ({ type: 'all', yearFrom: FY.min, yearTo: FY.max, genres: [], minRating: 0, sub: 'any', sort: 'rel' });
+const YEAR_MAX = new Date().getFullYear() + 1, YEAR_MIN = 1900;
+const FDEF = () => ({ type: 'all', year: 0, genres: [], minRating: 0, sort: 'rel' });   // year: 0 = tüm yıllar
 let FILTERS = FDEF();
-const OSMETA = {};        // imdb id -> { rating, tr } (OpenSubtitles sorgusuyla doldurulur)
+const OSMETA = {};        // imdb id -> { rating } (Cinemeta'da puan yoksa OpenSubtitles'tan sorgulanır)
 let osBusy = 0;
 const osKey = m => String(m.imdb || '').replace(/^tt/, '');
-const subHasTr = m => { const om = OSMETA[osKey(m)]; if (om && om.tr != null) return om.tr; return (m.subtitles || []).some(s => { const c = String(s || '').toLowerCase().replace(/-.*$/, ''); return c === 'tr' || c === 'tur'; }); };
 const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
 const metaRate = m => parseFloat(String(m.imdbRating).replace(',', '.')) || (OSMETA[osKey(m)]?.rating) || 0;
+const yearPool = () => [...new Set(RESULTS.map(metaYear).filter(y => y >= YEAR_MIN && y <= YEAR_MAX))].sort((a, b) => b - a);
 async function fetchOsMeta(list) {
   if (!cfg.osQuery) return;
   const todo = [...new Set(list.map(osKey).filter(id => /^\d+$/.test(id) && !(id in OSMETA)))];
@@ -371,22 +370,28 @@ async function fetchOsMeta(list) {
 function activeFiltCount(f) {
   let n = 0;
   if (f.type !== 'all') n++;
-  if (f.yearFrom > FY.min || f.yearTo < FY.max) n++;
+  if (f.year) n++;
   if (f.genres.length) n++;
   if (f.minRating > 0) n++;
-  if (f.sub !== 'any') n++;
   return n;
 }
 function applyFilters(list) {
   const f = FILTERS;
-  let r = list.filter(m =>
-    (f.type === 'all' || m.type === f.type) &&
-    (() => { const y = metaYear(m); return !y || (y >= f.yearFrom && y <= f.yearTo); })() &&
-    (!f.genres.length || f.genres.some(g => (m.genres || []).includes(g))) &&
-    // puan/altyazı bilgisi OpenSubtitles'tan gelinceye kadar bekleyen içerikleri eleme, veri gelince liste anında güncellenir
-    (f.minRating <= 0 || OSMETA[osKey(m)] === null || metaRate(m) >= f.minRating) &&
-    (f.sub === 'any' || OSMETA[osKey(m)] === null || (f.sub === 'tr' ? subHasTr(m) : !subHasTr(m)))
-  );
+  let r = list.filter(m => {
+    if (f.type !== 'all' && m.type !== f.type) return false;
+    if (f.year) { const y = metaYear(m); if (y && y !== f.year) return false; }
+    if (f.genres.length && !f.genres.some(g => (m.genres || []).includes(g))) return false;
+    if (f.minRating > 0) {
+      // bilinen puanı eşik altında kalanları ele; puanı hiç bilinmeyenleri sonuca dahil etme
+      const known = parseFloat(String(m.imdbRating).replace(',', '.'));
+      if (known >= f.minRating) return true;
+      if (known > 0) return false;
+      const om = OSMETA[osKey(m)];
+      if (om === undefined || om === null) return true;            // OpenSubtitles yanıtı henüz gelmedi → şimdilik göster
+      return (om.rating || 0) >= f.minRating;
+    }
+    return true;
+  });
   const by = { rel: (a, b) => 0, rating: (a, b) => metaRate(b) - metaRate(a), year: (a, b) => metaYear(b) - metaYear(a), az: (a, b) => a.name.localeCompare(b.name, 'tr') };
   if (by[f.sort]) r = [...r].sort(by[f.sort]);
   return r;
@@ -407,15 +412,11 @@ function renderFilterPanel() {
       <div class="fchips" data-k="type">
         ${[['all', 'Hepsi'], ['movie', 'Film'], ['series', 'Dizi']].map(([v, l]) => `<button class="fchip${f.type === v ? ' on' : ''}" data-v="${v}">${l}</button>`).join('')}
       </div>
-      <label class="fl">Türkçe altyazı</label>
-      <div class="fchips" data-k="sub">
-        ${[['any', 'Fark etmez'], ['tr', 'Var'], ['no', 'Yok']].map(([v, l]) => `<button class="fchip${f.sub === v ? ' on' : ''}" data-v="${v}">${l}</button>`).join('')}
-      </div>
-    </div>
-    <div class="fgroup">
-      <label class="fl" for="fyf">Yıl aralığı</label>
-      <div class="frng"><input id="fyf" type="range" min="${FY.min}" max="${FY.max}" step="1" value="${f.yearFrom}"><span class="mute">–</span><input id="fyto" type="range" min="${FY.min}" max="${FY.max}" step="1" value="${f.yearTo}"></div>
-      <output id="fyo" class="mute">${f.yearFrom === FY.min && f.yearTo === FY.max ? 'Tüm yıllar' : `${f.yearFrom} – ${f.yearTo}`}</output>
+      <label class="fl" for="fyear">Yıl</label>
+      <select id="fyear">
+        <option value="0"${!f.year ? ' selected' : ''}>Tüm yıllar</option>
+        ${yearPool().map(y => `<option value="${y}"${f.year === y ? ' selected' : ''}>${y}</option>`).join('')}
+      </select>
       <label class="fl" for="frt">En az IMDb puanı: <output id="frv">${f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'}</output></label>
       <div class="frng"><input id="frt" type="range" min="0" max="9" step="0.5" value="${f.minRating}"></div>
     </div>
@@ -435,14 +436,7 @@ function renderFilterPanel() {
     else { f[k] = v; chip.parentElement.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c === chip)); }
     refreshFiltered();
   });
-  const yf = $('#fyf'), yt = $('#fyto');
-  const ysync = () => {
-    if (+yf.value > +yt.value) { if (document.activeElement === yf) yt.value = yf.value; else yf.value = yt.value; }
-    f.yearFrom = +yf.value; f.yearTo = +yt.value;
-    $('#fyo').textContent = (f.yearFrom === FY.min && f.yearTo === FY.max) ? 'Tüm yıllar' : `${f.yearFrom} – ${f.yearTo}`;
-    refreshFiltered();
-  };
-  yf.oninput = ysync; yt.oninput = ysync;
+  $('#fyear').onchange = e => { f.year = +e.target.value || 0; refreshFiltered(); };
   const rt = $('#frt');
   rt.oninput = () => { f.minRating = +rt.value; $('#frv').textContent = f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'; refreshFiltered(); };
   $('#fclear').onclick = () => { FILTERS = FDEF(); renderResults(); renderFilterPanel(); };
@@ -453,7 +447,7 @@ function refreshFiltered() {
   const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
   const rc = $('#fresCount'); if (rc) rc.textContent = RESULTS.length ? `${list.length} / ${RESULTS.length} sonuç` : '';
   const btn = $('#fbtn'); if (btn) btn.innerHTML = `⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}`;
-  const fc = $('#fcount'); if (fc) fc.textContent = (n ? `${n} etkin filtre` : '') + (osBusy ? ' · altyazı/puan bilgisi alınıyor…' : '');
+  const fc = $('#fcount'); if (fc) fc.textContent = (n ? `${n} etkin filtre` : '') + (osBusy ? ' · IMDb puanı bilgisi alınıyor…' : '');
 }
 function renderResults() {
   if (view !== '') return;
