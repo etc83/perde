@@ -176,6 +176,25 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .card button.nm:hover{text-decoration:underline;color:var(--lamp)}
 @media (max-width:700px){.card button.nm{font-size:.8rem}}
 @media (hover:none){.card.has-last .pb::after{opacity:1;inset:auto auto .4rem .4rem;width:1.9rem;height:1.9rem;border-radius:50%;background:rgba(0,0,0,.65);font-size:.85rem;padding-left:.1rem}}
+
+/* ---- Arama filtre menüsü ---- */
+.fbar{display:flex;align-items:center;gap:.7rem;margin:.2rem 0 1rem;flex-wrap:wrap}
+#fbtn.on{border-color:var(--lamp);color:var(--lamp)}
+.fcount{display:inline-block;min-width:1.2rem;height:1.2rem;line-height:1.2;border-radius:99px;background:var(--lamp);color:#1c1a24;font-size:.72rem;font-weight:700;text-align:center;padding:0 .25rem;margin-left:.3rem;vertical-align:1px}
+.fsort{margin-left:auto}
+.fsort label{display:inline;margin:0 0 0 .3rem}
+.fsort select{width:auto;padding:.35rem .5rem}
+.fpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.4rem 1.2rem}
+.fgroup label.fl{margin:.5rem 0 .15rem}
+.frng{display:flex;align-items:center;gap:.6rem}
+.frng input[type=range]{flex:1;width:auto;padding:0;min-height:0;border:0;background:none;accent-color:var(--lamp)}
+.frng output{min-width:2.5rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.fchips{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.2rem}
+.fchip{padding:.3rem .75rem;border-radius:99px;font-size:.85rem;background:var(--bg)}
+.fchip.on{background:var(--lamp);border-color:var(--lamp);color:#1c1a24;font-weight:600}
+.ffoot{grid-column:1/-1;display:flex;gap:.6rem;align-items:center;margin-top:.4rem}
+.fnote{font-size:.8rem}
+@media (max-width:700px){.fpanel{grid-template-columns:1fr}.fsort{margin-left:0}}
 </style>
 </head>
 <body>
@@ -298,17 +317,125 @@ async function home() {
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 async function search(q) {
-  setNav(''); $('#main').innerHTML = '<p class="mute">Aranıyor…</p>';
+  setNav(''); LASTQ = q; $('#fpanel')?.remove(); fOpen = false;
+  $('#main').innerHTML = '<p class="mute">Aranıyor…</p>';
   try {
     const e = encodeURIComponent(q);
     const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top/search=${e}.json`), px(`${CINE}/catalog/series/top/search=${e}.json`)]);
-    if (view !== '') return;
-    const all = [...(mv.metas || []), ...(sr.metas || [])];
-    $('#main').innerHTML = all.length ? `<h2>“${esc(q)}” sonuçları</h2><br>${grid(all)}` : `<p class="mute">“${esc(q)}” için sonuç yok.</p>`;
+    if (view !== '' || LASTQ !== q) return;
+    RESULTS = [...(mv.metas || []), ...(sr.metas || [])];
+    renderResults();
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 let st;
 $('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 ? search(v) : (!v && home()), 400); };
+
+// ---------- Arama filtreleri ----------
+let RESULTS = [], LASTQ = '', fOpen = false;
+const FY = { min: 1950, max: new Date().getFullYear() + 1 };
+const FDEF = () => ({ type: 'all', yearFrom: FY.min, yearTo: FY.max, genres: [], minRating: 0, sub: 'any', sort: 'rel' });
+let FILTERS = FDEF();
+const subHasTr = m => (m.subtitles || []).some(s => { const c = String(s || '').toLowerCase().replace(/-.*$/, ''); return c === 'tr' || c === 'tur'; });
+const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
+const metaRate = m => parseFloat(String(m.imdbRating).replace(',', '.')) || 0;
+function activeFiltCount(f) {
+  let n = 0;
+  if (f.type !== 'all') n++;
+  if (f.yearFrom > FY.min || f.yearTo < FY.max) n++;
+  if (f.genres.length) n++;
+  if (f.minRating > 0) n++;
+  if (f.sub !== 'any') n++;
+  return n;
+}
+function applyFilters(list) {
+  const f = FILTERS;
+  let r = list.filter(m =>
+    (f.type === 'all' || m.type === f.type) &&
+    (() => { const y = metaYear(m); return !y || (y >= f.yearFrom && y <= f.yearTo); })() &&
+    (!f.genres.length || f.genres.some(g => (m.genres || []).includes(g))) &&
+    (f.minRating <= 0 || metaRate(m) >= f.minRating) &&
+    (f.sub === 'any' || (f.sub === 'tr' ? subHasTr(m) : !subHasTr(m)))
+  );
+  const by = { rel: (a, b) => 0, rating: (a, b) => metaRate(b) - metaRate(a), year: (a, b) => metaYear(b) - metaYear(a), az: (a, b) => a.name.localeCompare(b.name, 'tr') };
+  if (by[f.sort]) r = [...r].sort(by[f.sort]);
+  return r;
+}
+function topGenres() {
+  const cnt = {};
+  for (const m of RESULTS) for (const g of (m.genres || [])) cnt[g] = (cnt[g] || 0) + 1;
+  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 12).map(x => x[0]);
+}
+function renderFilterPanel() {
+  $('#fpanel')?.remove();
+  const f = FILTERS, tg = topGenres();
+  const el = document.createElement('div');
+  el.className = 'fpanel'; el.id = 'fpanel';
+  el.innerHTML = `
+    <div class="fgroup">
+      <label class="fl">Tür</label>
+      <div class="fchips" data-k="type">
+        ${[['all', 'Hepsi'], ['movie', 'Film'], ['series', 'Dizi']].map(([v, l]) => `<button class="fchip${f.type === v ? ' on' : ''}" data-v="${v}">${l}</button>`).join('')}
+      </div>
+      <label class="fl">Türkçe altyazı</label>
+      <div class="fchips" data-k="sub">
+        ${[['any', 'Fark etmez'], ['tr', 'Var'], ['no', 'Yok']].map(([v, l]) => `<button class="fchip${f.sub === v ? ' on' : ''}" data-v="${v}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="fgroup">
+      <label class="fl" for="fyf">Yıl aralığı</label>
+      <div class="frng"><input id="fyf" type="range" min="${FY.min}" max="${FY.max}" step="1" value="${f.yearFrom}"><span class="mute">–</span><input id="fyto" type="range" min="${FY.min}" max="${FY.max}" step="1" value="${f.yearTo}"></div>
+      <output id="fyo" class="mute">${f.yearFrom === FY.min && f.yearTo === FY.max ? 'Tüm yıllar' : `${f.yearFrom} – ${f.yearTo}`}</output>
+      <label class="fl" for="frt">En az IMDb puanı: <output id="frv">${f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'}</output></label>
+      <div class="frng"><input id="frt" type="range" min="0" max="9" step="0.5" value="${f.minRating}"></div>
+    </div>
+    ${tg.length ? `<div class="fgroup">
+      <label class="fl">Tür (kategori)</label>
+      <div class="fchips" data-k="genres">${tg.map(g => `<button class="fchip${f.genres.includes(g) ? ' on' : ''}" data-v="${esc(g)}">${esc(g)}</button>`).join('')}</div>
+    </div>` : ''}
+    <div class="ffoot">
+      <button id="fclear">Filtreleri temizle</button>
+      <span class="mute fnote" id="fcount"></span>
+    </div>`;
+  $('.fbar').after(el);
+  el.addEventListener('click', e => {
+    const chip = e.target.closest('.fchip'); if (!chip) return;
+    const k = chip.parentElement.dataset.k, v = chip.dataset.v;
+    if (k === 'genres') { const g = v; f.genres.includes(g) ? f.genres.splice(f.genres.indexOf(g), 1) : f.genres.push(g); chip.classList.toggle('on'); }
+    else { f[k] = k === 'type' || k === 'sub' ? v : v; chip.parentElement.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c === chip)); }
+    renderResults();
+  });
+  const yf = $('#fyf'), yt = $('#fyto');
+  const ysync = () => {
+    if (+yf.value > +yt.value) { if (document.activeElement === yf) yt.value = yf.value; else yf.value = yt.value; }
+    f.yearFrom = +yf.value; f.yearTo = +yt.value;
+    $('#fyo').textContent = (f.yearFrom === FY.min && f.yearTo === FY.max) ? 'Tüm yıllar' : `${f.yearFrom} – ${f.yearTo}`;
+    renderResults();
+  };
+  yf.oninput = ysync; yt.oninput = ysync;
+  const rt = $('#frt');
+  rt.oninput = () => { f.minRating = +rt.value; $('#frv').textContent = f.minRating ? f.minRating.toFixed(1) : 'Fark etmez'; renderResults(); };
+  $('#fclear').onclick = () => { FILTERS = FDEF(); renderFilterPanel(); renderResults(); };
+}
+function renderResults() {
+  if (view !== '') return;
+  const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
+  const barHtml = `
+    <div class="fbar">
+      <button id="fbtn" aria-expanded="${fOpen}" title="Arama sonuçlarına filtre uygula">⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}</button>
+      <span class="mute" id="fresCount">${RESULTS.length ? `${list.length} / ${RESULTS.length} sonuç` : ''}</span>
+      <span class="fsort"><label for="fsel">Sırala</label><select id="fsel">
+        <option value="rel"${FILTERS.sort === 'rel' ? ' selected' : ''}>İlgililik</option>
+        <option value="rating"${FILTERS.sort === 'rating' ? ' selected' : ''}>IMDb puanı</option>
+        <option value="year"${FILTERS.sort === 'year' ? ' selected' : ''}>Yenilik</option>
+        <option value="az"${FILTERS.sort === 'az' ? ' selected' : ''}>A → Z</option>
+      </select></span>
+    </div>`;
+  if (!RESULTS.length) { $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2><p class="mute">“${esc(LASTQ)}” için sonuç yok.</p>`; return; }
+  $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2>${barHtml}<br>${list.length ? grid(list) : '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>'}`;
+  $('#fbtn').onclick = () => { fOpen = !fOpen; fOpen ? renderFilterPanel() : $('#fpanel')?.remove(); $('#fbtn').setAttribute('aria-expanded', fOpen); };
+  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; renderResults(); };
+  const fc = $('#fcount'); if (fc && fOpen) fc.textContent = n ? `${n} etkin filtre` : '';
+}
 
 function lib() {
   setNav('lib');
