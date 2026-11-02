@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Perde</title>
+<style>
+:root{--bg:#1c1a24;--panel:#26232f;--line:#3a3646;--text:#efeaf4;--mute:#a29bb0;--lamp:#ffc46b;--red:#e5383b;--err:#ff8a8a;color-scheme:dark light}
+@media (prefers-color-scheme:light){:root{--bg:#f6f2ee;--panel:#fff;--line:#ddd5cc;--text:#241f2b;--mute:#6f6679;--lamp:#b36b00;--err:#b00020}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif}
+h1,h2,h3{font-family:ui-serif,"New York",Georgia,serif;font-weight:600;margin:0}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.45rem .9rem;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--lamp)}
+button:disabled{opacity:.6;cursor:default}
+button.primary{background:var(--lamp);color:#1c1a24;border-color:var(--lamp);font-weight:600}
+:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+input,select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;width:100%}
+code{font-size:.8rem;word-break:break-all}
+header{display:flex;gap:1rem;align-items:center;padding:.8rem 1.5rem;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5;flex-wrap:wrap}
+header h1{font-size:1.5rem;color:var(--lamp);margin-right:.5rem}
+nav{display:flex;gap:.3rem}
+nav button{border:0;background:none;color:var(--mute);border-radius:0}
+nav button.on{color:var(--text);box-shadow:inset 0 -2px var(--lamp)}
+#q{max-width:320px;margin-left:auto}
+main{padding:1.5rem;max-width:1500px;margin:auto}
+section h2{margin:1.8rem 0 .8rem}
+.mute{color:var(--mute)}.err{color:var(--err)}.pad{padding:1.5rem}
+
+/* Afiş kartları */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1.2rem 1.1rem}
+.card .pw{position:relative}
+.pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden}
+.pb img,.ph{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--panel)}
+.add{position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:50%;background:rgba(20,18,26,.82);color:#fff;border-color:rgba(255,255,255,.35);font-size:1.15rem;line-height:1;opacity:0;transition:opacity .15s}
+.card:hover .add,.add:focus-visible,.add.on{opacity:1}
+.add.on{background:var(--lamp);color:#1c1a24;border-color:var(--lamp)}
+@media (hover:none){.add{opacity:1}}
+.bar{height:4px;border-radius:2px;margin-top:.45rem}
+.bar.has{background:var(--line)}
+.bar i{display:block;height:100%;background:var(--red);border-radius:2px}
+.nm{display:block;font-size:.88rem;margin-top:.3rem;line-height:1.3}
+.card small{color:var(--mute)}
+
+/* Paneller */
+.sheet{position:fixed;inset:0;background:rgba(10,8,16,.8);display:none;z-index:10;overflow:auto;padding:2rem 1rem}
+.sheet.open{display:block}
+.box{background:var(--bg);border:1px solid var(--line);border-radius:12px;max-width:1200px;margin:auto;padding:1.5rem;position:relative}
+.x{position:absolute;right:1rem;top:1rem}
+.detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem;margin-top:1.8rem}
+@media (max-width:860px){.detail{grid-template-columns:1fr}}
+.hero{display:flex;gap:1.2rem;margin-bottom:1rem}
+.hero img{width:130px;border-radius:8px;align-self:flex-start}
+.hero h2{font-size:1.7rem;line-height:1.2}
+.chips{display:inline-flex;gap:.35rem;flex-wrap:wrap;vertical-align:middle}
+.chip{border:1px solid var(--line);border-radius:99px;padding:0 .6rem;font-size:.82rem}
+.info p{margin:.6rem 0}
+.srcs{position:sticky;top:0;align-self:start;max-height:calc(100vh - 4rem);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem}
+.srcs h3{margin-bottom:.6rem}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.7rem 0;align-items:center}
+.list{display:grid;gap:.4rem}
+.item{display:flex;justify-content:space-between;gap:1rem;text-align:left;width:100%}
+.item small{color:var(--mute);white-space:nowrap}
+.ep{display:grid;grid-template-columns:1fr auto}
+.ep .bar{grid-column:1/-1;margin-top:.3rem}
+.ep.sel{border-color:var(--lamp)}
+.src{display:grid;gap:.2rem;text-align:left;width:100%;background:var(--bg)}
+.s1{word-break:break-word}.s2{font-size:.8rem;color:var(--mute)}
+.s3{display:flex;gap:.35rem;flex-wrap:wrap}
+.tag{border:1px solid var(--lamp);color:var(--lamp);border-radius:99px;padding:0 .55rem;font-size:.75rem}
+.tag.ok{border-color:#58c27d;color:#58c27d}.tag.q{border-color:var(--line);color:var(--mute)}
+
+/* Oynatıcı */
+#player{padding:1rem}
+#player .box{padding:0;overflow:hidden;background:#000}
+.ptop{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.7rem 1rem;background:var(--bg)}
+.ptop .sp{flex:1}
+#stage{background:#000}
+#stage video{display:block;width:100%;height:76vh;background:#000}
+#toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--lamp);padding:.5rem 1rem;border-radius:8px;display:none;z-index:20;max-width:90vw}
+label{display:block;margin:.8rem 0 .2rem;color:var(--mute);font-size:.85rem}
+
+/* ---- Duyarlı yerleşim (PC, tablet, telefon) ---- */
+body.lock{overflow:hidden}
+.sheet{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+header{padding-top:max(.8rem,env(safe-area-inset-top));padding-left:max(1.5rem,env(safe-area-inset-left));padding-right:max(1.5rem,env(safe-area-inset-right))}
+#toast{bottom:max(1rem,env(safe-area-inset-bottom))}
+@media (pointer:coarse){
+  button{min-height:44px}
+  .add{width:2.5rem;height:2.5rem}
+  input,select{font-size:16px;min-height:44px}
+}
+@media (max-width:860px){
+  .srcs{position:static;max-height:none}
+}
+@media (max-width:700px){
+  header{gap:.5rem;padding:max(.6rem,env(safe-area-inset-top)) 1rem .6rem}
+  header h1{font-size:1.3rem;margin-right:0}
+  nav{margin-left:auto}
+  #q{order:3;flex:1 1 100%;max-width:none;margin-left:0}
+  main{padding:1rem}
+  section h2{margin:1.2rem 0 .6rem;font-size:1.2rem}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:.9rem .7rem}
+  .nm{font-size:.8rem}
+  .sheet{padding:0}
+  .box{border-radius:0;border:0;min-height:100%;padding:3.6rem 1rem 2rem}
+  .x{position:fixed;top:max(.6rem,env(safe-area-inset-top));right:.8rem;z-index:3;background:var(--bg)}
+  .detail{margin-top:.4rem;gap:1.2rem}
+  .hero{gap:.9rem}
+  .hero img{width:96px}
+  .hero h2{font-size:1.35rem}
+  #player{background:#000}
+  #player .box{padding:0;min-height:100%}
+  .ptop{padding:.6rem .8rem;gap:.4rem;padding-top:max(.6rem,env(safe-area-inset-top))}
+  #ptitle{flex:1 1 100%;font-size:.95rem}
+  .ptop .sp{display:none}
+  .ptop button{flex:1 1 auto;padding:.4rem .6rem;font-size:.85rem}
+  #stage video{height:56.25vw}
+}
+@media (max-height:500px) and (orientation:landscape){
+  #stage video{height:calc(100dvh - 56px)}
+  .ptop{padding:.3rem .8rem}
+  #ptitle{flex:1 1 auto}
+}
+
+/* ---- Oynatıcı kontrolleri ---- */
+#fsbox{position:relative;background:#000}
+#fsbox.fs{display:block;width:100%;height:100%}
+#fsbox.fs #stage{position:absolute;inset:0}
+#fsbox.fs #stage video{width:100%;height:100%}
+#fsbox.fs .bars{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.88) 45%);transition:opacity .25s}
+#fsbox.fs .ctl,#fsbox.fs .sbar{background:none;color:#fff}
+#fsbox.fs.idle{cursor:none}
+#fsbox.fs.idle .bars:not(:hover){opacity:0;pointer-events:none}
+#stage{position:relative}
+#stage.busy::after{content:'Hazırlanıyor…';position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-size:1.05rem;pointer-events:none}
+#stage video{height:min(76vh,calc(100dvh - 210px))}
+.ctl{display:flex;align-items:center;gap:.5rem;padding:.4rem .8rem;background:var(--bg)}
+.ctl input[type=range]{flex:1;width:auto;padding:0;min-height:0;border:0;background:none;accent-color:var(--lamp)}
+.ctl span{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--mute);font-size:.85rem}
+.sbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.5rem .8rem;background:var(--bg)}
+.sbar label{display:inline;margin:0}
+.sbar select{width:auto;max-width:min(300px,60vw)}
+@media (max-width:700px){
+  .ctl{flex-wrap:wrap}.ctl input[type=range]{order:5;flex:1 1 100%}
+  #stage video{height:56.25vw}
+}
+@media (max-height:500px) and (orientation:landscape){#stage video{height:calc(100dvh - 150px)}}
+
+/* Oynatıcı her zaman koyu tema (açık temada beyaz üstüne beyaz yazı olmasın) */
+#player{--bg:#1c1a24;--panel:#26232f;--line:#3a3646;--text:#efeaf4;--mute:#a29bb0;--lamp:#ffc46b;color:var(--text);color-scheme:dark}
+#fsbox.fs button,#fsbox.fs select{background:rgba(38,35,47,.9);color:#fff;border-color:rgba(255,255,255,.28)}
+
+/* ---- Başlık menüsü: geniş ekranda satır içi, telefonda açılır ---- */
+.menu{display:contents}
+header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
+#menuBtn{display:none;order:1;margin-left:auto;font-size:1.25rem;line-height:1;padding:.4rem .75rem}
+@media (max-width:700px){
+  #menuBtn{display:block}
+  .menu{display:none;position:absolute;top:100%;left:0;right:0;z-index:6;flex-direction:column;align-items:stretch;gap:.4rem;background:var(--bg);border-bottom:1px solid var(--line);padding:.4rem 1rem 1rem;box-shadow:0 12px 24px rgba(0,0,0,.35)}
+  .menu.open{display:flex}
+  .menu nav{flex-direction:column;margin:0;order:0}
+  .menu nav button{text-align:left;padding:.7rem .4rem;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none}
+  .menu nav button.on{color:var(--lamp);box-shadow:none}
+  .menu #me{order:1;padding:.4rem}
+  .menu #logout{order:2}
+  #q{order:2}
+}
+/* ---- Afiş: oynat / başlık: detay ---- */
+.pb{position:relative}
+.card.has-last .pb::after{content:'▶';position:absolute;inset:0;display:grid;place-items:center;font-size:2.4rem;color:#fff;background:rgba(0,0,0,.38);opacity:0;transition:opacity .15s}
+.card.has-last:hover .pb::after,.card.has-last .pb:focus-visible::after{opacity:1}
+.card.busy{opacity:.55;pointer-events:none}
+.card button.nm{display:block;width:100%;min-height:0;text-align:left;background:none;border:0;border-radius:0;padding:0;margin-top:.3rem;font:inherit;font-size:.88rem;line-height:1.3;color:inherit;cursor:pointer}
+.card button.nm:hover{text-decoration:underline;color:var(--lamp)}
+@media (max-width:700px){.card button.nm{font-size:.8rem}}
+@media (hover:none){.card.has-last .pb::after{opacity:1;inset:auto auto .4rem .4rem;width:1.9rem;height:1.9rem;border-radius:50%;background:rgba(0,0,0,.65);font-size:.85rem;padding-left:.1rem}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Perde</h1>
+  <div class="menu" id="menu">
+    <nav>
+      <button data-v="home" class="on">Keşfet</button>
+      <button data-v="lib">Kütüphanem</button>
+      <button data-v="set">Hesabım</button>
+      <button data-v="usr" id="navUsr" style="display:none">Kullanıcılar</button>
+    </nav>
+    <span id="me" class="mute"></span><button id="logout">Çıkış</button>
+  </div>
+  <input id="q" type="search" placeholder="Film veya dizi ara" aria-label="Ara">
+  <button id="menuBtn" aria-label="Menü" aria-expanded="false" aria-controls="menu">☰</button>
+</header>
+<main id="main"></main>
+
+<div class="sheet" id="detail"><div class="box" id="detailBox"></div></div>
+<div class="sheet" id="player"><div class="box">
+  <div class="ptop">
+    <strong id="ptitle"></strong><span id="pinfo" class="mute"></span><span class="sp"></span>
+    <button id="remux" style="display:none">Uyumluluk modu</button>
+    <button id="iina">IINA'da aç</button><button id="vlc">VLC'de aç</button><button id="copy">Bağlantıyı kopyala</button><button id="closeP">Kapat</button>
+  </div>
+  <div id="fsbox">
+    <div id="stage"></div>
+    <div class="bars" id="bars">
+      <div class="ctl" id="ctl" style="display:none">
+        <button id="cPlay" aria-label="Oynat/Duraklat">▶</button><button id="cBack" aria-label="10 sn geri">−10</button><button id="cFwd" aria-label="10 sn ileri">+10</button>
+        <input id="cSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Konum">
+        <span id="cTime">0:00 / 0:00</span><button id="cMute">Ses</button><button id="cFs">Tam ekran</button>
+      </div>
+      <div class="sbar">
+        <span id="audBox" style="display:none"><label for="audSel">Ses</label> <select id="audSel"></select></span>
+        <span><label for="subSel">Altyazı</label> <select id="subSel"><option value="">Kapalı</option></select></span>
+        <button id="sdm" title="Altyazıyı 0,5 sn geri al">−0,5 sn</button><button id="sdp" title="Altyazıyı 0,5 sn geciktir">+0,5 sn</button>
+        <span id="subMsg" class="mute"></span>
+      </div>
+    </div>
+  </div>
+</div></div>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const CINE = 'https://v3-cinemeta.strem.io';
+let cfg = {}, D = { library: [], progress: {} }, META = {}, view = 'home', redrawEps = null, saveT, curUrl = '', P = null, curState = null;
+
+async function j(p, o) {
+  const r = await fetch(p, o), d = await r.json().catch(() => ({}));
+  if (r.status === 401) { location.href = '/login'; throw new Error('Giriş gerekli'); }
+  if (!r.ok) throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'İstek başarısız (' + r.status + ')');
+  return d;
+}
+const post = (p, b) => j(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+const px = u => j('/api/proxy?url=' + encodeURIComponent(u));
+let tt;
+function toast(m, ms = 3500) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => t.style.display = 'none', ms); }
+const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); };
+const saveData = () => { clearTimeout(saveT); saveT = setTimeout(() => post('/api/data', D).catch(() => {}), 600); };
+
+// ---------- İzleme ilerlemesi ----------
+const fOf = x => x && x.d ? Math.min(1, x.t / x.d) : 0;
+function frac(id) {
+  const p = D.progress[id]; if (!p) return 0;
+  const v = Object.values(p.eps || {}); if (!v.length) return 0;
+  if (p.type === 'series' && p.total) return Math.min(1, v.reduce((a, x) => a + (fOf(x) >= .92 ? 1 : fOf(x)), 0) / p.total);
+  return fOf([...v].sort((a, b) => (b.u || 0) - (a.u || 0))[0]);
+}
+function refreshBars() {
+  $$('.card').forEach(c => { c.classList.toggle('has-last', !!(cfg.addonSet && D.progress[c.dataset.id]?.last)); const f = frac(c.dataset.id), b = c.querySelector('.bar'); b.classList.toggle('has', f > 0); b.querySelector('i').style.width = Math.round(f * 100) + '%'; });
+  if (redrawEps) redrawEps();
+}
+
+// ---------- Kütüphane (izleme listesi) ----------
+const inLib = id => D.library.some(x => x.id === id);
+function toggleLib(id) {
+  const i = D.library.findIndex(x => x.id === id);
+  if (i >= 0) D.library.splice(i, 1);
+  else { const m = META[id]; if (!m) return; D.library.unshift({ id, type: m.type, name: m.name, poster: m.poster, imdbRating: m.imdbRating, releaseInfo: m.releaseInfo || m.year, addedAt: Date.now() }); }
+  saveData();
+  if (view === 'lib') return lib();
+  const on = inLib(id);
+  $$(`.card[data-id="${CSS.escape(id)}"] .add`).forEach(b => { b.classList.toggle('on', on); b.textContent = on ? '✓' : '+'; b.title = on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'; });
+  const lb = $('#libBtn'); if (lb && lb.dataset.id === id) lb.textContent = on ? '✓ Kütüphanemde' : '+ Kütüphaneme ekle';
+}
+
+// ---------- Görünümler ----------
+function setNav(v) { view = v; $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+$$('nav button').forEach(b => b.onclick = () => { $('#q').value = ''; ({ home, lib, set: settings, usr: usersView })[b.dataset.v](); });
+
+function card(m) {
+  META[m.id] = m;
+  const f = frac(m.id), on = inLib(m.id);
+  const sub = [m.releaseInfo || m.year, m.imdbRating ? '★ ' + m.imdbRating : ''].filter(Boolean).join(' · ');
+  return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
+    <button class="pb" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
+    <button class="add${on ? ' on' : ''}" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
+    <div class="bar${f > 0 ? ' has' : ''}"><i style="width:${Math.round(f * 100)}%"></i></div>
+    <button class="nm" title="Detayları aç">${esc(m.name)}</button><small>${esc(sub)}</small></div>`;
+}
+const grid = ms => `<div class="grid">${ms.map(card).join('')}</div>`;
+$('#main').addEventListener('click', e => {
+  const c = e.target.closest('.card'); if (!c) return;
+  if (e.target.closest('.add')) return toggleLib(c.dataset.id);
+  if (e.target.closest('.nm')) return openDetail(c.dataset.t, c.dataset.id);
+  if (e.target.closest('.pb')) quickPlay(c.dataset.t, c.dataset.id, c);
+});
+
+async function home() {
+  setNav('home'); $('#main').innerHTML = '<p class="mute">Yükleniyor…</p>';
+  try {
+    const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top.json`), px(`${CINE}/catalog/series/top.json`)]);
+    if (view !== 'home') return;
+    $('#main').innerHTML = `<section><h2>Popüler filmler</h2>${grid(mv.metas || [])}</section><section><h2>Popüler diziler</h2>${grid(sr.metas || [])}</section>`;
+  } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+async function search(q) {
+  setNav(''); $('#main').innerHTML = '<p class="mute">Aranıyor…</p>';
+  try {
+    const e = encodeURIComponent(q);
+    const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top/search=${e}.json`), px(`${CINE}/catalog/series/top/search=${e}.json`)]);
+    if (view !== '') return;
+    const all = [...(mv.metas || []), ...(sr.metas || [])];
+    $('#main').innerHTML = all.length ? `<h2>“${esc(q)}” sonuçları</h2><br>${grid(all)}` : `<p class="mute">“${esc(q)}” için sonuç yok.</p>`;
+  } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+let st;
+$('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 ? search(v) : (!v && home()), 400); };
+
+function lib() {
+  setNav('lib');
+  const mv = D.library.filter(x => x.type === 'movie'), sr = D.library.filter(x => x.type === 'series');
+  $('#main').innerHTML = D.library.length
+    ? (mv.length ? `<section><h2>Filmler</h2>${grid(mv)}</section>` : '') + (sr.length ? `<section><h2>Diziler</h2>${grid(sr)}</section>` : '')
+    : '<p class="mute">Kütüphaneniz boş. Keşfet’te bir afişin üzerine gelip “+” düğmesine basarak içerik ekleyin.</p>';
+}
+
+// ---------- Detay ----------
+
+async function openDetail(type, id) {
+  sheet('#detail', true); redrawEps = null;
+  const box = $('#detailBox'); box.innerHTML = '<p class="mute">Yükleniyor…</p>';
+  try {
+    const { meta } = await px(`${CINE}/meta/${type}/${id}.json`);
+    META[id] = META[id] || { id, type, name: meta.name, poster: meta.poster, imdbRating: meta.imdbRating, releaseInfo: meta.releaseInfo || meta.year };
+    const genres = meta.genres || meta.genre || [], cast = meta.cast || [], dir = meta.director || [];
+    const vids = (meta.videos || []).filter(v => v.season > 0);
+    const seasons = [...new Set(vids.map(v => v.season))].sort((a, b) => a - b);
+    const sub = [meta.releaseInfo || meta.year, meta.runtime, meta.imdbRating ? '★ ' + meta.imdbRating + ' IMDb' : ''].filter(Boolean).join(' · ');
+    box.innerHTML = `<button class="x" id="cd">Kapat</button>
+      <div class="detail"><div class="info">
+        <div class="hero">${meta.poster ? `<img referrerpolicy="no-referrer" src="${esc(meta.poster)}" alt="">` : ''}
+          <div><h2>${esc(meta.name)}</h2><p class="mute">${esc(sub)}</p>
+          <div class="row"><button id="libBtn" data-id="${esc(id)}">${inLib(id) ? '✓ Kütüphanemde' : '+ Kütüphaneme ekle'}</button></div></div></div>
+        <p>${esc(meta.description || 'Özet bulunamadı.')}</p>
+        ${genres.length ? `<p><b>Tür</b>&nbsp; <span class="chips">${genres.map(g => `<span class="chip">${esc(g)}</span>`).join('')}</span></p>` : ''}
+        ${cast.length ? `<p><b>Oyuncular</b>&nbsp; ${esc(cast.slice(0, 12).join(', '))}</p>` : ''}
+        ${dir.length ? `<p><b>Yönetmen</b>&nbsp; ${esc(dir.join(', '))}</p>` : ''}
+        ${type === 'series' ? `<h3 style="margin-top:1.4rem">Bölümler</h3><div class="row"><select id="sSel" style="max-width:170px">${seasons.map(s => `<option value="${s}">Sezon ${s}</option>`).join('')}</select></div><div class="list" id="eps"></div>` : ''}
+      </div>
+      <aside class="srcs"><h3>Kaynaklar</h3><div class="list" id="streams"><p class="mute">${type === 'series' ? 'Soldan bir bölüm seçin.' : 'Aranıyor…'}</p></div></aside></div>`;
+    $('#cd').onclick = () => sheet('#detail', false);
+    $('#libBtn').onclick = () => toggleLib(id);
+    const base = { type, id, title: meta.name, total: vids.length };
+    if (type === 'series') {
+      let sel = '';
+      const draw = () => {
+        const s = +$('#sSel').value, eps = vids.filter(v => v.season === s).sort((a, b) => a.episode - b.episode);
+        $('#eps').innerHTML = eps.map(v => {
+          const f = fOf(D.progress[id]?.eps?.[s + ':' + v.episode]), k = s + ':' + v.episode;
+          return `<button class="item ep${sel === k ? ' sel' : ''}" data-e="${v.episode}"><span>${v.episode}. ${esc(v.name || v.title || 'Bölüm ' + v.episode)}</span><small>${f >= .92 ? '✓ izlendi' : f > 0 ? '%' + Math.round(f * 100) : ''}</small>${f > 0 ? `<div class="bar has"><i style="width:${Math.round(f * 100)}%"></i></div>` : ''}</button>`;
+        }).join('');
+        $$('#eps .ep').forEach(b => b.onclick = () => { sel = s + ':' + b.dataset.e; draw(); findStreams({ ...base, ep: { season: s, episode: +b.dataset.e }, sid: `${id}:${s}:${b.dataset.e}` }); if (matchMedia('(max-width:860px)').matches) $('.srcs').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      };
+      redrawEps = () => { if ($('#sSel')) draw(); };
+      $('#sSel').onchange = draw; draw();
+    } else findStreams({ ...base, sid: id });
+  } catch (e) { box.innerHTML = `<button class="x" id="cd">Kapat</button><p class="err">${esc(e.message)}</p>`; $('#cd').onclick = () => sheet('#detail', false); }
+}
+
+const decode = x => { try { return decodeURIComponent(x); } catch { return x; } };
+const directOf = (url, s) => +!!s?.direct;
+const cachedOf = s => /\[AD\+\]/.test(s.name || '') ? 1 : 0;
+async function findStreams(ctx) {
+  const box = $('#streams');
+  if (!cfg.addonSet) { box.innerHTML = '<p class="err">Kaynak eklentisi ayarlanmamış. Yöneticiden Ayarlar’a eklemesini isteyin.</p>'; return; }
+  box.innerHTML = '<p class="mute">Kaynaklar aranıyor…</p>';
+  try {
+    const data = await j(`/api/streams?type=${ctx.type}&sid=${encodeURIComponent(ctx.sid)}`);
+    const streams = (Array.isArray(data.streams) ? data.streams : []).sort((a, b) => (cachedOf(b) - cachedOf(a)) || (directOf(null, b) - directOf(null, a)));
+    if (!streams.length) { box.innerHTML = '<p class="mute">Eklenti bu başlık için kaynak döndürmedi.</p>'; return; }
+    box.innerHTML = streams.slice(0, 50).map((s, i) => {
+      const nm = (s.name || '').split('\n'), tl = (s.title || s.description || '').split('\n'), q = nm.slice(1).join(' ').trim();
+      const tag = /\[AD\+\]/.test(nm[0]) ? '<span class="tag ok">Hazır</span>' : /\[AD/.test(nm[0]) ? '<span class="tag">İndirilecek</span>' : '';
+      return `<button class="src" data-i="${i}"><span class="s1">${esc(tl[0] || nm[0] || 'Kaynak')}</span><span class="s2">${esc(tl.slice(1).join(' · '))}</span><span class="s3">${tag}${directOf(null, s) ? '<span class="tag ok">Doğrudan</span>' : '<span class="tag q">Yeniden paketlenir</span>'}${q ? `<span class="tag q">${esc(q)}</span>` : ''}</span></button>`;
+    }).join('');
+    $$('#streams .src').forEach(b => b.onclick = () => play(streams[+b.dataset.i], ctx, b));
+  } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+// Bir içerik için son kullanılan kaynak (sürüm adı + kalite) saklanır; afişe tıklayınca yeni listede yeniden bulunur.
+const normFp = t => String(t || '').split('\n')[0].replace(/S\d{1,2}E\d{1,3}/ig, 'SxEx').replace(/\b\d{1,2}x\d{1,3}\b/ig, 'SxEx').toLowerCase().trim();
+const fpOf = s => normFp(s.title);
+const qOf = s => String(s.name || '').split('\n').slice(1).join(' ').trim().toLowerCase();
+function pickStream(list, last) {
+  const words = x => new Set(x.split(/[^a-z0-9]+/).filter(Boolean)), lt = words(last.fp);
+  let best = null, bs = 0;
+  for (const s of list) {
+    if (!s.tok) continue;
+    const fp = fpOf(s);
+    let sc = fp === last.fp ? 2 : 0;
+    if (!sc) { const t = words(fp); let n = 0; t.forEach(w => lt.has(w) && n++); sc = n / Math.max(1, new Set([...t, ...lt]).size); if (sc < 0.6) continue; }
+    if (qOf(s) === last.q) sc += 0.2;
+    if (sc > bs) { bs = sc; best = s; }
+  }
+  return best;
+}
+async function quickPlay(type, id, card) {
+  const rec = D.progress[id];
+  if (!rec?.last || !cfg.addonSet) return openDetail(type, id);     // daha önce kaynak seçilmediyse detay menüsü
+  card?.classList.add('busy'); toast('Kaldığınız yerden açılıyor…', 10000);
+  try {
+    const { meta } = await px(`${CINE}/meta/${type}/${id}.json`);
+    const ctx = { type, id, title: meta.name }; let sid = id;
+    if (type === 'series') {
+      const vids = (meta.videos || []).filter(v => v.season > 0).sort((a, b) => a.season - b.season || a.episode - b.episode);
+      ctx.total = vids.length;
+      const byTime = Object.entries(rec.eps || {}).sort((a, b) => (b[1].u || 0) - (a[1].u || 0));
+      let target = byTime[0]?.[0];
+      if (!target) throw new Error('Önce bir bölüm seçin.');
+      if (fOf(rec.eps[target]) >= .92) { const i = vids.findIndex(v => `${v.season}:${v.episode}` === target), n = vids[i + 1]; if (n) target = `${n.season}:${n.episode}`; }   // bittiyse sıradaki bölüm
+      const [se, ep] = target.split(':').map(Number);
+      ctx.ep = { season: se, episode: ep }; sid = `${id}:${se}:${ep}`;
+    }
+    const data = await j(`/api/streams?type=${type}&sid=${encodeURIComponent(sid)}`);
+    const pick = pickStream(data.streams || [], rec.last);
+    if (!pick) { toast('Önceki kaynak şu an listede yok, kaynak seçin.', 5000); return openDetail(type, id); }
+    ctx.sid = sid;
+    $('#toast').style.display = 'none';
+    await play(pick, ctx);
+  } catch (e) { toast(e.message, 5000); openDetail(type, id); }
+  finally { card?.classList.remove('busy'); }
+}
+async function play(s, ctx, btn) {
+  if (!s.tok) return toast('Bu kaynak oynatılamıyor (eklentide AllDebrid ayarlı olmalı).', 6000);
+  const rec = D.progress[ctx.id] || (D.progress[ctx.id] = { type: ctx.type, eps: {} });
+  rec.type = ctx.type; rec.last = { fp: fpOf(s), q: qOf(s) }; saveData();
+  await openPlayer(s.tok, ctx, s);
+}
+
+// ---------- Oynatıcı ----------
+// MP4/M4V/MOV: tarayıcının kendi oynatıcısı (doğrudan bağlantı, sunucuya yük yok).
+// MKV vb.: sunucuda ffmpeg ile parça parça HLS'e paketlenir. Sarma çubuğu bize ait (tam süre gösterir),
+// hazır olmayan bir noktaya sarılınca sunucuda o noktadan yeni oturum başlar.
+let hlsP;
+const loadHls = () => hlsP || (hlsP = new Promise((ok, no) => {
+  const add = src => {
+    const el = document.createElement('script'); el.src = src; el.onload = ok;
+    el.onerror = () => src.startsWith('/') ? add('https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js') : (hlsP = null, no(new Error('hls.js yüklenemedi')));
+    document.head.appendChild(el);
+  };
+  add('/vendor/hls/hls.min.js');
+}));
+const fmt = t => { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+const langName = c => { if (!c) return ''; try { return new Intl.DisplayNames(['tr'], { type: 'language' }).of(c) || c; } catch { return c; } };
+const trackName = t => [langName(t.lang) || 'Bilinmiyor', t.title, t.codec + (t.ch ? ' ' + t.ch + 'k' : '')].filter(Boolean).join(' · ');
+const stopSid = id => navigator.sendBeacon('/api/hls/stop', new Blob([JSON.stringify({ id })], { type: 'application/json' }));
+const subMsg = (m, bad) => { const e = $('#subMsg'); e.textContent = m || ''; e.className = bad ? 'err' : 'mute'; };
+const absT = () => P ? P.offset + (P.el.currentTime || 0) : 0;
+const L2 = { tur: 'tr', eng: 'en', ger: 'de', deu: 'de', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', rus: 'ru', jpn: 'ja', kor: 'ko', por: 'pt', dut: 'nl', nld: 'nl', swe: 'sv', pol: 'pl', ara: 'ar', chi: 'zh', zho: 'zh', gre: 'el', ell: 'el', heb: 'he', cze: 'cs', ces: 'cs', dan: 'da', fin: 'fi', nor: 'no', hun: 'hu', rum: 'ro', ron: 'ro', ukr: 'uk', vie: 'vi', tha: 'th', ind: 'id', bul: 'bg', hrv: 'hr', srp: 'sr', slo: 'sk', slk: 'sk', slv: 'sl' };
+const norm2 = c => { c = String(c || '').toLowerCase(); return L2[c] || c.slice(0, 2); };
+const defAudio = a => (a.find(x => /^(tur|tr)$/i.test(x.lang)) || a[0])?.index;
+
+function saveProgress(st) {                                // izleme konumunu (mutlak saniye) kaydeder
+  if (st.switching || !st.wantDone) return;
+  const abs = st.offset + (st.el.currentTime || 0), d = st.trueDur || (st.sid ? 0 : st.el.duration);
+  if (!(d > 0) || !(abs >= 0)) return;
+  st.rec.eps[st.key] = { t: abs, d, u: Date.now() };
+}
+function stopPlayback() {
+  if (P) saveProgress(P);                                  // kapanmadan önce son konumu yaz (load() sonrası currentTime 0 olur)
+  if (P) {
+    clearInterval(P.hb); clearInterval(P.dbgT); P.hls?.destroy(); if (P.sid) stopSid(P.sid); if (P.subUrl) URL.revokeObjectURL(P.subUrl);
+    try { P.el.pause(); P.el.removeAttribute('src'); P.el.load(); } catch {}
+    P = null;
+  }
+  $('#stage').innerHTML = ''; $('#stage').classList.remove('busy'); $('#fsbox').classList.remove('idle'); $('#ctl').style.display = 'none'; $('#remux').style.display = 'none';
+  $('#audSel').innerHTML = ''; $('#audBox').style.display = 'none'; $('#subSel').innerHTML = '<option value="">Kapalı</option>'; subMsg('');
+}
+
+// --- Hata ayıklama (sunucu PERDE_DEBUG=1 ile başlatıldıysa olaylar terminale yazılır) ---
+const dbg = m => { if (cfg.debug) navigator.sendBeacon('/api/log', new Blob([JSON.stringify({ m })], { type: 'application/json' })); };
+const rangesOf = v => [...Array(v.buffered.length)].map((_, i) => v.buffered.start(i).toFixed(1) + '-' + v.buffered.end(i).toFixed(1)).join(',') || '-';
+function dbgAttach(st) {
+  if (!cfg.debug) return;
+  const v = st.el, snap = () => `t=${v.currentTime.toFixed(1)} rs=${v.readyState} ns=${v.networkState} paused=${v.paused} muted=${v.muted} sayfa=${document.visibilityState}/${document.hasFocus() ? 'odakta' : 'odaksız'} buf=${rangesOf(v)} dur=${v.duration}`;
+  const origPause = v.pause.bind(v);
+  v.pause = () => { dbg('pause() ÇAĞRILDI: ' + (new Error().stack || '').split('\n').slice(1, 5).map(x => x.trim().slice(0, 70)).join(' | ')); return origPause(); };
+  ['waiting', 'stalled', 'pause', 'play', 'playing', 'seeking', 'seeked', 'error', 'ended', 'emptied'].forEach(ev => v.addEventListener(ev, () => dbg(`${ev} ${snap()}${ev === 'error' && v.error ? ' kod=' + v.error.code + ' ' + (v.error.message || '') : ''}`)));
+  dbg(`oynatıcı: ${st.direct ? 'doğrudan' : 'HLS'} tarayıcı=${navigator.userAgent.replace(/^Mozilla\/5.0 /, '').slice(0, 90)}`);
+  st.dbgT = setInterval(() => dbg('durum ' + snap()), 2000);
+}
+// --- Altyazı ---
+function shiftVtt(text, d) {
+  const rx = /(?:(\d+):)?(\d\d):(\d\d)[.,](\d{3})/g;
+  return text.split('\n').map(l => l.includes('-->') ? l.replace(rx, (m, h, mi, s, ms) => {
+    const t = Math.max(0, (+(h || 0)) * 3600 + +mi * 60 + +s + +ms / 1000 + d), H = Math.floor(t / 3600), M = Math.floor(t % 3600 / 60), S = t % 60;
+    return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}:${S.toFixed(3).padStart(6, '0')}`;
+  }) : l).join('\n');
+}
+function applySub(st) {
+  st.el.querySelectorAll('track').forEach(t => t.remove());
+  if (st.subUrl) { URL.revokeObjectURL(st.subUrl); st.subUrl = null; }
+  if (!st.subText) return;
+  st.subUrl = URL.createObjectURL(new Blob([shiftVtt(st.subText, -st.offset + st.subDelay)], { type: 'text/vtt' }));
+  const t = document.createElement('track'); t.kind = 'subtitles'; t.label = 'Altyazı'; t.default = true; t.src = st.subUrl;
+  st.el.appendChild(t); t.track.mode = 'showing';
+}
+function renderSubSel(st) {
+  const sel = $('#subSel'), cur = sel.value;
+  const emb = (st.subs || []).map(t => `<option value="e:${t.index}">${esc(trackName({ ...t, ch: 0 }))}</option>`).join('');
+  const os = (st.osList || []).map(t => `<option value="o:${t.file_id}" data-lang="${esc(t.lang)}">${esc(t.lang.toUpperCase())} · ${esc((t.release || '').slice(0, 50))} (${t.downloads})</option>`).join('');
+  sel.innerHTML = '<option value="">Kapalı</option>' + (emb ? `<optgroup label="Videoda gömülü">${emb}</optgroup>` : '') + (os ? `<optgroup label="OpenSubtitles">${os}</optgroup>` : '');
+  sel.value = cur; if (sel.value !== cur) sel.value = '';
+}
+function fillTracks(st, audios, subs) {
+  st.audios = audios || st.audios || []; st.subs = subs || st.subs || [];
+  const a = $('#audSel'); if (st.aidx == null) st.aidx = defAudio(st.audios); st.defAidx = st.defAidx ?? st.aidx;
+  a.innerHTML = st.audios.map(t => `<option value="${t.index}"${t.index === st.aidx ? ' selected' : ''}>${esc(trackName(t))}</option>`).join('');
+  $('#audBox').style.display = st.audios.length > 1 ? '' : 'none';
+  renderSubSel(st);
+  if (subs) st.embLoaded = true;
+  autoSub(st);
+}
+async function loadOsSubs(st) {
+  if (!cfg.osSet) { st.osLoaded = true; subMsg('Harici altyazı için yöneticiden OpenSubtitles bilgilerini girmesini isteyin.'); return autoSub(st); }
+  try {
+    const p = new URLSearchParams({ imdb: st.ctx.id, langs: cfg.langs });
+    if (st.ctx.ep) { p.set('season', st.ctx.ep.season); p.set('episode', st.ctx.ep.episode); }
+    st.osList = await j('/api/subs?' + p); st.osLoaded = true;
+    if (P === st) { renderSubSel(st); if (!st.osList.length) subMsg('OpenSubtitles’ta altyazı bulunamadı.'); autoSub(st); }
+  } catch (e) { st.osLoaded = true; if (P === st) { subMsg(e.message, true); autoSub(st); } }
+}
+function rebuildSub(st) {
+  const seen = new Set(), out = ['WEBVTT', ''];
+  for (const w of st.subWins) for (const blk of w.text.replace(/\r/g, '').split(/\n\n+/)) { if (!blk.includes('-->') || seen.has(blk)) continue; seen.add(blk); out.push(blk, ''); }
+  st.subText = out.join('\n'); applySub(st);
+}
+// Gömülü altyazı: tüm dosyayı okumak yerine izlenen noktadan başlayan pencereler (önce 3 dk, sonra 10 dk) çıkarılır
+async function ensureSubs(st) {
+  if (P !== st || st.subKind !== 'e' || st.subBusy) return;
+  const t = absT(), cur = st.subWins.find(w => t >= w.a && t < w.b);
+  let a, dur;
+  if (!cur) { a = Math.max(0, Math.floor(t) - 5); dur = st.subWins.length ? 600 : 180; }
+  else if (cur.b - t < 90 && !st.subWins.some(w => w.a === cur.b)) { a = cur.b; dur = 600; }
+  else return;
+  const idx = st.subIdx; st.subBusy = true; if (!st.subWins.length) subMsg('Altyazı hazırlanıyor…');
+  try {
+    const r = await fetch('/api/hls/sub?' + new URLSearchParams({ tok: st.url, index: idx, from: a, dur }));
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Altyazı çıkarılamadı');
+    const text = await r.text();
+    if (P === st && st.subKind === 'e' && st.subIdx === idx) { st.subWins.push({ a, b: a + dur, text }); rebuildSub(st); subMsg(''); }
+  } catch (err) { if (P === st) subMsg(err.message, true); }
+  finally { st.subBusy = false; if (P === st) ensureSubs(st); }
+}
+async function selectSub(st, val, remember) {
+  const opt = [...$('#subSel').options].find(o => o.value === val);
+  st.subKind = val ? val[0] : ''; st.subIdx = val.slice(2); st.subWins = []; st.subText = ''; applySub(st); subMsg('');
+  if (remember && st.rec) {                                            // seçim bu içerik için hatırlanır
+    const t = val[0] === 'e' ? (st.subs || []).find(x => String(x.index) === st.subIdx) : null;
+    st.rec.sub = val ? { kind: val[0], lang: norm2(t ? t.lang : opt?.dataset.lang), title: t?.title || '', delay: st.subDelay } : { kind: '' };
+    saveData();
+  }
+  if (!val) return;
+  if (val[0] === 'e') return ensureSubs(st);
+  subMsg('Altyazı indiriliyor…');
+  try {
+    const r = await fetch('/api/sub?' + new URLSearchParams({ file_id: val.slice(2), lang: opt?.dataset.lang || '' }));
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Altyazı alınamadı');
+    const text = await r.text(); if (P !== st || st.subKind !== 'o') return;
+    st.subText = text; applySub(st); subMsg('');
+  } catch (err) { if (P === st) subMsg(err.message, true); }
+}
+// Daha önce seçilen altyazı dilini (ve türünü) yeni açılışta otomatik seçer; liste geç yüklenirse bekler.
+function autoSub(st) {
+  const w = st.rec?.sub;
+  if (P !== st || !w?.kind || st.subTouched || st.subKind || st.autoDone) return;
+  const emb = (st.subs || []).filter(t => norm2(t.lang) === w.lang).sort((a, b) => (b.title === w.title) - (a.title === w.title))[0];
+  const os = (st.osList || []).find(t => norm2(t.lang) === w.lang);
+  const pref = w.kind === 'e' ? emb : os, other = w.kind === 'e' ? os : emb;
+  const val = (t, kind) => t ? (kind === 'e' ? 'e:' + t.index : 'o:' + t.file_id) : '';
+  let v = val(pref, w.kind);
+  if (!v) {
+    if (!(st.embLoaded && st.osLoaded)) return;                        // öbür liste henüz gelmedi: bekle
+    v = val(other, w.kind === 'e' ? 'o' : 'e');
+    if (!v) { st.autoDone = true; return; }                            // bu dilde altyazı yok
+  }
+  st.autoDone = true; st.subDelay = w.delay || 0;
+  $('#subSel').value = v; if ($('#subSel').value !== v) return;
+  selectSub(st, v, false);
+}
+$('#subSel').onchange = e => { if (!P) return; P.subTouched = true; selectSub(P, e.target.value, true); };
+const nudge = d => { if (!P) return; P.subDelay = Math.round((P.subDelay + d) * 10) / 10; if (P.rec?.sub?.kind) { P.rec.sub.delay = P.subDelay; saveData(); } applySub(P); subMsg(`Altyazı gecikmesi: ${P.subDelay > 0 ? '+' : ''}${P.subDelay} sn`); };
+$('#sdm').onclick = () => nudge(-0.5); $('#sdp').onclick = () => nudge(0.5);
+
+// --- Oturum (MKV vb.) ---
+async function startSession(st, ss, aidx) {
+  const v = st.el;
+  st.switching = true; $('#stage').classList.add('busy'); st.hls?.destroy(); st.hls = null; clearInterval(st.hb);
+  if (st.sid) { stopSid(st.sid); st.sid = null; }
+  $('#pinfo').textContent = 'Hazırlanıyor…';
+  const r = await post('/api/hls/start', { tok: st.url, ss: Math.floor(ss), aidx });
+  if (P !== st) { stopSid(r.id); return; }
+  st.sid = r.id; st.trueDur = r.duration || st.trueDur; st.offset = r.start ?? Math.floor(ss); st.aidx = r.aidx; st.gen = r.gen || 0;
+  const want = Math.max(0, ss - st.offset);                     // istenen nokta ile anahtar kare arasındaki fark
+  fillTracks(st, r.audios, r.subs);
+  const pl = `/hls/${r.id}/index.m3u8`;
+  const forceHls = new URLSearchParams(location.search).get('engine') === 'hls';   // Safari'nin kendi HLS oynatıcısı yerine hls.js
+  st.want = want > 0.5 ? want : 0; st.wantDone = !st.want; st.wantTries = 0;
+  const tag = ++st.sessId; setTimeout(() => { if (st.sessId === tag) st.wantDone = true; }, 10000);
+  if (!forceHls && v.canPlayType('application/vnd.apple.mpegurl')) v.src = pl;
+  else {
+    await loadHls();
+    if (!window.Hls || !Hls.isSupported()) throw new Error('Bu tarayıcı HLS oynatmayı desteklemiyor');
+    const h = new Hls({ startPosition: want > 0.5 ? want : 0, maxBufferLength: 30 });
+    h.on(Hls.Events.ERROR, (e, d) => { dbg(`hls.js hata: ${d.details} fatal=${d.fatal}`); if (d.fatal) toast('Oynatma hatası: ' + d.details, 8000); });
+    h.loadSource(pl); h.attachMedia(v); st.hls = h;
+  }
+  v.play().catch(() => {});
+  applySub(st); ensureSubs(st);
+  $('#pinfo').textContent = st.dispTxt + ' · Uyumluluk modu';
+  st.hb = setInterval(() => post('/api/hls/pos', { id: st.sid, pos: v.currentTime }).then(r => { if (P === st && r.gen) st.gen = r.gen; }).catch(() => {}), 2000);
+}
+// İstenen saniyeye (anahtar kareden sonraki fark ya da kayıtlı konum) tarayıcı hazır olunca atlar; tutmazsa birkaç kez dener.
+function ensureWant(st) {
+  if (st.wantDone || !st.want) return;
+  const v = st.el;
+  if (Math.abs(v.currentTime - st.want) < 1.5) { st.wantDone = true; return; }
+  if (v.seeking || v.readyState < 1) return;
+  if (++st.wantTries > 8) { st.wantDone = true; return; }
+  try { v.currentTime = st.want; } catch {}
+}
+function seekTo(t) {
+  const st = P; if (!st) return;
+  const v = st.el; t = Math.min(Math.max(0, t), (st.trueDur || v.duration || 1e9) - 1);
+  if (!st.sid) { v.currentTime = t; return; }
+  const rel = t - st.offset;                                // hazır süre sunucudan gelir (tarayıcının seekable değeri güvenilmez)
+  if (rel >= 0 && rel <= st.gen - 2) v.currentTime = rel;                       // hazır bölüm içinde: anında
+  else startSession(st, t, st.aidx).catch(e => toast(e.message, 6000));     // değilse: o noktadan yeni oturum
+}
+
+async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
+  stopPlayback();
+  curUrl = ''; curState = { url, ctx, s };                    // url = sunucu bileti (gerçek adres tarayıcıya gitmez)
+  const key = ctx.ep ? `${ctx.ep.season}:${ctx.ep.episode}` : 'm';
+  const rec = D.progress[ctx.id] || (D.progress[ctx.id] = { type: ctx.type, eps: {} });
+  rec.type = ctx.type; if (ctx.total) rec.total = ctx.total;
+  let start = opt.at ?? (rec.eps[key]?.t || 0); if (opt.at == null && fOf(rec.eps[key]) > .92) start = 0;
+  const direct = !forceRemux && !!directOf(url, s);
+  $('#ptitle').textContent = ctx.ep ? `${ctx.title} · S${ctx.ep.season}E${ctx.ep.episode}` : ctx.title;
+  const hdr = /hdr|dolby|\bdv\b/i.test((s?.name || '') + (s?.title || ''));
+  const dispTxt = (hdr ? 'HDR/DV · ' : '') + (matchMedia('(dynamic-range: high)').matches ? 'Ekranınız HDR destekliyor' : 'Ekran HDR göstermiyor');
+  $('#pinfo').textContent = direct ? dispTxt : 'Hazırlanıyor…';
+  sheet('#player', true);
+
+  const v = document.createElement('video');
+  v.playsInline = true; v.preload = 'auto'; v.autoplay = true; v.controls = direct;
+  $('#stage').appendChild(v);
+  v.play().catch(() => {});                                  // tıklama anında başlat: sonradan gelen kaynak 'kullanıcı başlattı' sayılır
+  const st = P = { el: v, url, ctx, s, direct, dispTxt, sid: null, hls: null, hb: null, offset: 0, trueDur: 0, aidx: null, audios: [], subs: [], osList: [], subText: '', subKind: '', subIdx: '', subWins: [], subBusy: false, subUrl: null, subDelay: 0, switching: false, drag: false, key, gen: 0, rec, want: 0, wantDone: true, wantTries: 0, sessId: 0, embLoaded: false, osLoaded: false, subTouched: false, autoDone: false };
+  j('/api/direct?json=1&t=' + url).then(r => { if (P === st) curUrl = r.url; }).catch(() => {});   // IINA/VLC/kopyala için
+  dbgAttach(st);
+  let lastSave = 0;
+  v.addEventListener('timeupdate', () => {
+    if (P !== st || st.switching || !st.wantDone) return;     // kapatılmış oynatıcının olayları ve atlama bitmeden gelenler konumu ezmesin
+    const abs = absT(), d = st.trueDur || (st.sid ? 0 : v.duration);
+    if (!(d > 0) || !(abs >= 0)) return;
+    if (!st.drag) { $('#cSeek').value = Math.round(abs / d * 1000); $('#cTime').textContent = fmt(abs) + ' / ' + fmt(d); }
+    saveProgress(st);
+    if (Date.now() - lastSave > 5000) { lastSave = Date.now(); saveData(); }
+    if (Date.now() - lastSubCheck > 5000) { lastSubCheck = Date.now(); ensureSubs(st); }
+  });
+  let lastSubCheck = 0;
+  v.addEventListener('seeked', () => { ensureWant(st); ensureSubs(st); });
+  v.addEventListener('loadeddata', () => { st.switching = false; $('#stage').classList.remove('busy'); ensureWant(st); });
+  ['loadedmetadata', 'canplay', 'playing'].forEach(ev => v.addEventListener(ev, () => ensureWant(st)));
+  v.addEventListener('play', () => { $('#cPlay').textContent = '❚❚'; wake(); });
+  v.addEventListener('pause', () => { $('#cPlay').textContent = '▶'; wake(); });
+  v.addEventListener('ended', () => { if (P !== st) return; const x = rec.eps[key]; if (x) x.t = x.d; saveData(); });
+
+  $('#ctl').style.display = direct ? 'none' : ''; $('#remux').style.display = direct ? '' : 'none';
+  loadOsSubs(st);
+  if (direct) {
+    if (start > 5) { st.want = start; st.wantDone = false; setTimeout(() => { st.wantDone = true; }, 10000); }   // doğrudan modda kaldığınız saniyeye atla
+    v.addEventListener('error', () => toast('Tarayıcı bu dosyayı oynatamadı. “Uyumluluk modu”nu deneyin.', 8000));
+    v.src = '/api/direct?t=' + url;                         // sunucu nihai adrese yönlendirir (video doğrudan CDN'den akar)
+    post('/api/probe', { tok: url }).then(r => { if (P === st) { st.trueDur = r.duration || 0; fillTracks(st, r.audios, r.subs); } }).catch(() => { if (P === st) { st.embLoaded = true; autoSub(st); } });   // ffmpeg yoksa sessizce atlanır
+    return;
+  }
+  try { await startSession(st, start, opt.aidx); }
+  catch (e) { if (P === st) { st.switching = false; $('#stage').classList.remove('busy'); subMsg(e.message, true); toast(e.message, 8000); } }
+}
+function closePlayer() { stopPlayback(); sheet('#player', false); saveData(); refreshBars(); }
+
+// --- Kontroller ---
+let idleT;
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function wake() {
+  const box = $('#fsbox'); box.classList.remove('idle'); clearTimeout(idleT);
+  if (fsOn() && P && !P.el.paused) idleT = setTimeout(() => box.classList.add('idle'), 3000);
+}
+['mousemove', 'pointerdown', 'touchstart'].forEach(ev => $('#fsbox').addEventListener(ev, wake, { passive: true }));
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { $('#fsbox').classList.toggle('fs', fsOn()); wake(); }));
+function toggleFs() {
+  const box = $('#fsbox'), fs = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fs) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  const req = box.requestFullscreen || box.webkitRequestFullscreen;
+  if (req) req.call(box); else P?.el.webkitEnterFullscreen?.();
+}
+$('#cPlay').onclick = () => P && (P.el.paused ? P.el.play() : P.el.pause());
+$('#cBack').onclick = () => P && seekTo(absT() - 10);
+$('#cFwd').onclick = () => P && seekTo(absT() + 10);
+$('#cMute').onclick = () => { if (P) { P.el.muted = !P.el.muted; $('#cMute').textContent = P.el.muted ? 'Sessiz' : 'Ses'; } };
+$('#cFs').onclick = toggleFs;
+$('#cSeek').oninput = e => { if (!P) return; P.drag = true; $('#cTime').textContent = fmt(e.target.value / 1000 * P.trueDur) + ' / ' + fmt(P.trueDur); };
+$('#cSeek').onchange = e => { if (!P) return; P.drag = false; seekTo(e.target.value / 1000 * P.trueDur); };
+$('#audSel').onchange = e => {
+  const st = P; if (!st) return;
+  const idx = +e.target.value, at = absT();
+  if (st.sid) startSession(st, at, idx).catch(err => toast(err.message, 6000));
+  else if (idx !== st.defAidx) openPlayer(st.url, st.ctx, st.s, true, { at, aidx: idx });   // doğrudan modda ses değişimi: uyumluluk moduna geç
+};
+$('#remux').onclick = () => curState && openPlayer(curState.url, curState.ctx, curState.s, true, { at: absT() });
+window.addEventListener('pagehide', () => { if (P?.sid) stopSid(P.sid); });
+document.addEventListener('keydown', e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range') return;
+  const open = $('#player').classList.contains('open');
+  if (e.key === 'Escape') {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    if (open) return closePlayer();
+    if ($('#detail').classList.contains('open')) sheet('#detail', false);
+    return;
+  }
+  if (!open || !P || e.metaKey || e.ctrlKey || e.altKey) return;
+  wake();
+  if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); P.el.paused ? P.el.play() : P.el.pause(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(absT() - 10); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(absT() + 10); }
+  else if (e.key === 'f') toggleFs();
+  else if (e.key === 'm') $('#cMute').click();
+});
+$('#closeP').onclick = closePlayer;
+$('#iina').onclick = () => curUrl ? location.href = 'iina://weblink?url=' + encodeURIComponent(curUrl) : toast('Bağlantı hazırlanıyor, birkaç saniye sonra deneyin.');
+const isMac = /Mac/.test(navigator.platform) && !(navigator.maxTouchPoints > 1);
+if (!isMac) $('#iina').style.display = 'none';
+$('#vlc').onclick = () => curUrl ? location.href = 'vlc://' + curUrl : toast('Bağlantı hazırlanıyor, birkaç saniye sonra deneyin.');
+$('#copy').onclick = () => curUrl ? navigator.clipboard.writeText(curUrl).then(() => toast('Bağlantı kopyalandı')) : toast('Bağlantı hazırlanıyor, birkaç saniye sonra deneyin.');
+
+// ---------- Hesap, ayarlar, kullanıcılar ----------
+let me = null;
+function settings() {
+  setNav('set');
+  const admin = me.role === 'admin';
+  $('#main').innerHTML = `<div style="max-width:620px"><h2>Hesabım</h2>
+    <p class="mute">${esc(me.name)} · ${admin ? 'Yönetici' : 'Kullanıcı'}</p>
+    <label for="f_old">Mevcut parola</label><input id="f_old" type="password" autocomplete="current-password">
+    <label for="f_new">Yeni parola (en az 6 karakter)</label><input id="f_new" type="password" autocomplete="new-password">
+    <div class="row"><button id="chpw">Parolayı değiştir</button></div><p id="pres"></p>
+    ${admin ? `<h2 style="margin-top:2rem">Sunucu ayarları</h2>
+    <p class="mute">Bilgiler yalnızca bu bilgisayardaki config.json dosyasında saklanır ve tüm kullanıcılar için geçerlidir. Kullanıcılar bu adresleri göremez.</p>
+    <label for="f_addon">Kaynak eklentisi (Torrentio manifest adresi)</label><input id="f_addon" value="${esc(cfg.addon)}" placeholder="https://torrentio.strem.fun/…/manifest.json" autocomplete="off">
+    <label for="f_oskey">OpenSubtitles API anahtarı ${cfg.osSet ? '(kayıtlı)' : '(isteğe bağlı)'}</label><input id="f_oskey" type="password" placeholder="opensubtitles.com/consumers" autocomplete="off">
+    <label for="f_osu">OpenSubtitles kullanıcı adı</label><input id="f_osu" value="${esc(cfg.osUser)}" autocomplete="off">
+    <label for="f_osp">OpenSubtitles parolası</label><input id="f_osp" type="password" autocomplete="off" placeholder="${cfg.osSet ? '(kayıtlı)' : ''}">
+    <label for="f_lang">Altyazı dilleri (virgülle)</label><input id="f_lang" value="${esc(cfg.langs)}" placeholder="tr,en">
+    <div class="row"><button class="primary" id="save">Kaydet</button><button id="tAddon">Eklentiyi sına</button></div><p id="sres"></p>` : ''}</div>`;
+  const out = (id, m, bad) => { $(id).textContent = m; $(id).className = bad ? 'err' : ''; };
+  $('#chpw').onclick = async () => {
+    try { await post('/api/me/password', { old: $('#f_old').value, pw: $('#f_new').value }); $('#f_old').value = $('#f_new').value = ''; out('#pres', 'Parola değiştirildi.'); }
+    catch (e) { out('#pres', e.message, true); }
+  };
+  if (!admin) return;
+  $('#save').onclick = async () => {
+    try { cfg = { ...cfg, ...await post('/api/config', { addon: $('#f_addon').value, osKey: $('#f_oskey').value, osUser: $('#f_osu').value, osPass: $('#f_osp').value, langs: $('#f_lang').value }) }; toast('Kaydedildi'); settings(); }
+    catch (e) { out('#sres', e.message, true); }
+  };
+  $('#tAddon').onclick = async () => {
+    try { const m = await post('/api/addon/test', { url: $('#f_addon').value }); out('#sres', `Bağlandı: ${m.name || 'eklenti'} ${m.version || ''}`); }
+    catch (e) { out('#sres', e.message, true); }
+  };
+}
+async function usersView() {
+  setNav('usr');
+  $('#main').innerHTML = '<p class="mute">Yükleniyor…</p>';
+  try {
+    const list = await j('/api/users');
+    $('#main').innerHTML = `<div style="max-width:720px"><h2>Kullanıcılar</h2>
+      <p class="mute">Her kullanıcının kütüphanesi ve izleme ilerlemesi ayrıdır. Yalnızca güvendiğiniz kişileri ekleyin.</p>
+      <div class="list" id="ulist">${list.map(u => `<div class="item" style="align-items:center;flex-wrap:wrap" data-id="${esc(u.id)}"><span><b>${esc(u.name)}</b> <small>${u.role === 'admin' ? 'Yönetici' : 'Kullanıcı'}${u.id === me.id ? ' · siz' : ''}</small></span>
+        <span class="row" style="margin:0"><button data-a="pw">Parola belirle</button><button data-a="role">${u.role === 'admin' ? 'Kullanıcı yap' : 'Yönetici yap'}</button>${u.id === me.id ? '' : '<button data-a="del">Sil</button>'}</span></div>`).join('')}</div>
+      <h3 style="margin-top:1.6rem">Yeni kullanıcı</h3>
+      <label for="u_name">Kullanıcı adı</label><input id="u_name" autocomplete="off">
+      <label for="u_pw">Parola (en az 6 karakter)</label><input id="u_pw" type="password" autocomplete="new-password">
+      <label for="u_role">Rol</label><select id="u_role"><option value="user">Kullanıcı</option><option value="admin">Yönetici</option></select>
+      <div class="row"><button class="primary" id="u_add">Ekle</button></div><p id="ures"></p></div>`;
+    const err = e => { $('#ures').textContent = e.message; $('#ures').className = 'err'; };
+    $('#u_add').onclick = () => post('/api/users', { name: $('#u_name').value, password: $('#u_pw').value, role: $('#u_role').value }).then(usersView).catch(err);
+    $$('#ulist [data-a]').forEach(b => b.onclick = () => {
+      const row = b.closest('[data-id]'), id = row.dataset.id, u = list.find(x => x.id === id);
+      if (b.dataset.a === 'pw') { const pw = prompt(`${u.name} için yeni parola (en az 6 karakter):`); if (pw) post('/api/users/update', { id, password: pw }).then(() => toast('Parola değiştirildi')).catch(err); }
+      else if (b.dataset.a === 'role') post('/api/users/update', { id, role: u.role === 'admin' ? 'user' : 'admin' }).then(usersView).catch(err);
+      else if (confirm(`${u.name} silinsin mi? Kütüphanesi ve izleme geçmişi de silinir.`)) post('/api/users/delete', { id }).then(usersView).catch(err);
+    });
+  } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+const menu = $('#menu'), menuBtn = $('#menuBtn');
+const closeMenu = () => { menu.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); };
+menuBtn.onclick = e => { e.stopPropagation(); const o = menu.classList.toggle('open'); menuBtn.setAttribute('aria-expanded', String(o)); };
+menu.addEventListener('click', e => { if (e.target.closest('button')) closeMenu(); });
+document.addEventListener('click', e => { if (!e.target.closest('#menu, #menuBtn')) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+const flushData = () => { if (!me) return; try { const b = new Blob([JSON.stringify(D)], { type: 'application/json' }); if (b.size < 60000) navigator.sendBeacon('/api/data', b); } catch {} };
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushData(); });
+window.addEventListener('pagehide', flushData);
+$('#logout').onclick = async () => { try { await post('/api/logout', {}); } catch {} location.href = '/login'; };
+
+(async () => {
+  [me, cfg, D] = await Promise.all([j('/api/me'), j('/api/config'), j('/api/data')]);
+  D.library = D.library || []; D.progress = D.progress || {};
+  $('#me').textContent = me.name; $('#navUsr').style.display = me.role === 'admin' ? '' : 'none';
+  (cfg.addonSet || me.role !== 'admin') ? home() : settings();
+})();
+</script>
+</body>
+</html>

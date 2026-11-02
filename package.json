@@ -1,0 +1,11 @@
+{
+  "name": "perde",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "local": "LOCAL=1 node server.js"
+  },
+  "dependencies": {
+    "hls.js": "^1.5.17"
+  }
+}
