@@ -7,7 +7,18 @@ macOS'ta yerel çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid.
 1. `brew install node ffmpeg`
 2. Bu klasörde `npm install` (hls.js'i yerel kurar; yapmazsanız CDN'den yüklenir)
 3. `node server.js`, sonra http://localhost:7777
-4. Ayarlar'a Torrentio manifest adresinizi yapıştırın, "Eklentiyi sına"ya basın.
+4. Ayarlar'a Torrentio manifest adresinizi, Alldebrid ve OpenSubtitles API'nizi yapıştırın, "Eklentiyi sına"ya basın.
+
+## Kullanıcılar ve erişim
+- **İlk kurulum:** Sunucuyu başlatın, **sunucunun çalıştığı bilgisayarda** `http://localhost:7777` adresini açın ve yönetici hesabını oluşturun. (İlk kurulum başka cihazlardan yapılamaz.)
+- **Giriş:** Herkes (yönetici dahil) kullanıcı adı ve parolayla girer; oturum 30 gün hatırlanır. 5 yanlış denemeden sonra 15 dakika kilitlenir.
+- **Yönetici:** "Kullanıcılar" sekmesinden kullanıcı ekler, parola belirler, yönetici yapar ya da siler. "Hesabım" sayfasında sunucu ayarlarını (Torrentio adresi, OpenSubtitles) yönetir; bunları kullanıcılar göremez.
+- **Ayrı veri:** Her kullanıcının kütüphanesi ve izleme ilerlemesi ayrıdır (`data/` klasörü). Eski `data.json` varsa ilk yöneticiye taşınır.
+- **Kaynak adresleri tarayıcıya gitmez:** Torrentio adresi (AllDebrid anahtarınız içinde) ve kaynak bağlantıları yalnızca sunucuda kalır; kullanıcılar süreli bir bilet görür.
+- `node server.js` (veya `npm start`) sunucuyu ağdaki cihazlara açar: yerel ağda `http://192.168.x.x:7777`, Tailscale'de `http://100.x.x.x:7777`. macOS ilk seferde "node gelen bağlantılara izin versin mi?" diye sorar: İzin ver.
+- Güvenmediğiniz bir Wi-Fi'da (kafe, otel) yalnızca bu bilgisayara açmak için: `npm run local`.
+- Evin dışından erişmek için Tailscale gibi özel bir ağ en güvenlisidir. Doğrudan internete açarsanız (HTTPS yok) parolalar şifresiz gider; bunu yapmayın ya da önüne HTTPS sağlayan bir tünel/proxy koyun.
+- Yedek: `users.json` (hesaplar), `config.json` (ayarlar), `data/` (kullanıcı verileri) dosyalarını kopyalamanız yeterli.
 
 ## Kullanım
 - **Afişe tıklayın:** o içerik için en son kullandığınız kaynak (sürüm adı + kalite) yeniden bulunur ve kaldığınız yerden oynatılır. Dizide yarım kalan bölüm, bittiyse sıradaki bölüm açılır. İçerik için henüz kaynak seçmediyseniz ya da önceki kaynak listede artık yoksa detay menüsü açılır. Kaynağı olan afişlerin üzerinde ▶ görünür.
@@ -35,17 +46,6 @@ macOS'ta yerel çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid.
 - **Hatırlama:** Seçtiğiniz altyazı (dil, tür ve gecikme ayarı) o içerik için saklanır; dizide tüm bölümlerde geçerlidir. Sonraki açılışta aynı dildeki altyazı otomatik seçilir (gömülü yoksa OpenSubtitles'tan, tersi de geçerli). "Kapalı" seçerseniz kapalı kalır.
 - Altyazı kayık görünürse "−0,5 sn / +0,5 sn" düğmeleriyle ayarlayın.
 - Klavye: Boşluk oynat/duraklat, ←/→ 10 sn, F tam ekran, M sessiz, Esc kapat.
-
-## Kullanıcılar ve erişim
-- **İlk kurulum:** Sunucuyu başlatın, **sunucunun çalıştığı bilgisayarda** `http://localhost:7777` adresini açın ve yönetici hesabını oluşturun. (İlk kurulum başka cihazlardan yapılamaz.)
-- **Giriş:** Herkes (yönetici dahil) kullanıcı adı ve parolayla girer; oturum 30 gün hatırlanır. 5 yanlış denemeden sonra 15 dakika kilitlenir.
-- **Yönetici:** "Kullanıcılar" sekmesinden kullanıcı ekler, parola belirler, yönetici yapar ya da siler. "Hesabım" sayfasında sunucu ayarlarını (Torrentio adresi, OpenSubtitles) yönetir; bunları kullanıcılar göremez.
-- **Ayrı veri:** Her kullanıcının kütüphanesi ve izleme ilerlemesi ayrıdır (`data/` klasörü). Eski `data.json` varsa ilk yöneticiye taşınır.
-- **Kaynak adresleri tarayıcıya gitmez:** Torrentio adresi (AllDebrid anahtarınız içinde) ve kaynak bağlantıları yalnızca sunucuda kalır; kullanıcılar süreli bir bilet görür.
-- `node server.js` (veya `npm start`) sunucuyu ağdaki cihazlara açar: yerel ağda `http://192.168.x.x:7777`, Tailscale'de `http://100.x.x.x:7777`. macOS ilk seferde "node gelen bağlantılara izin versin mi?" diye sorar: İzin ver.
-- Güvenmediğiniz bir Wi-Fi'da (kafe, otel) yalnızca bu bilgisayara açmak için: `npm run local`.
-- Evin dışından erişmek için Tailscale gibi özel bir ağ en güvenlisidir. Doğrudan internete açarsanız (HTTPS yok) parolalar şifresiz gider; bunu yapmayın ya da önüne HTTPS sağlayan bir tünel/proxy koyun.
-- Yedek: `users.json` (hesaplar), `config.json` (ayarlar), `data/` (kullanıcı verisi) dosyalarını kopyalamanız yeterli.
 
 ## Veri
 Hesaplar `users.json`, ayarlar `config.json`, kütüphane ve izleme ilerlemesi `data/` klasöründedir (kullanıcı başına bir dosya).
