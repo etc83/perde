@@ -358,10 +358,21 @@ $('#main').addEventListener('click', e => {
   if (e.target.closest('.pb')) quickPlay(c.dataset.t, c.dataset.id, c);
 });
 
+// Katalog sayfaları tek tek toleranslı çekilir: bir sayfa patlasa bile diğerlerinden içerik gelir.
+const catalogPage = async type => {
+  const pages = ['', '/skip=100', '/skip=200'];
+  const res = await Promise.allSettled(pages.map(p => px(`${CINE}/catalog/${type}/top${p}.json`)));
+  return res.filter(x => x.status === 'fulfilled').flatMap(x => Array.isArray(x.value) ? x.value : (x.value?.metas || []));
+};
 async function home() {
   setNav('home'); $('#main').innerHTML = '<p class="mute">Yükleniyor…</p>';
   try {
-    if (!CATALOG.loaded) await loadCatalog();   // Filmler/Diziler sekmeleri + kategori (tür) bazlı yatay satırlar
+    if (!HOME.length) {
+      // Cinemeta "top" kataloğu sayfa sayfa ~100 öğe döner → birkaç sayfa çekip birleştir (yatay satırlarda daha fazla içerik)
+      const [mv, sr] = await Promise.all([catalogPage('movie'), catalogPage('series')]);
+      const seen = new Set();
+      HOME = [...mv, ...sr].filter(Boolean).filter(m => m && m.id && !seen.has(m.id) && (seen.add(m.id), m.type === 'movie' || m.type === 'series'));
+    }
     if (view !== 'home') return;
     renderView();
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p><button id="retryHome">Tekrar dene</button>`; $('#retryHome').onclick = home; }
@@ -424,10 +435,12 @@ async function search(q) {
 }
 const ENRICH = {};   // v3uid -> { imdb, imdbRating, year }
 const numRate = m => parseFloat(String(m.imdbRating ?? '').replace(',', '.')) || 0;
+// Cinemeta "top" kataloğu öğelerinde imdb alanı hiç bulunmaz (sadece imdb_id var) → önce onu doldur.
+// Aksi halde osKey boş kalır, OpenSubtitles yedeği çalışmaz ve enrichImdb her öğeyi tek tek meta ile sorgular.
+const fillImdbId = list => { for (const m of list) if (!m.imdb && /^tt\d+$/.test(m.id)) m.imdb = m.id; };
 async function enrichImdb(list) {
-  const needMeta = m => !m.imdb || !(numRate(m) > 0) || !metaYear(m);
-  // Cinemeta katalog kayıtlarında imdb alanı "imdb_id" olarak gelir → normalize et (OS yedeği ve puan filtresi bunu kullanır)
-  for (const m of list) if (!m.imdb && /^tt\d+$/.test(String(m.imdb_id || ''))) m.imdb = m.imdb_id;
+  fillImdbId(list);
+  const needMeta = m => !(numRate(m) > 0) || !metaYear(m);   // imdb id artık listede varsayılır
   // Yalnızca sorgulanacak kopyaları tut: nesne ileride değişse de cache'e yanlış kayıt yazılmasın
   const todo = list.filter(m => m.id && needMeta(m) && !(m.id in ENRICH)).map(m => ({ id: m.id, type: m.type }));
   for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]);
