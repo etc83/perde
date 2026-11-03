@@ -463,11 +463,17 @@ http.createServer(async (req, res) => {
       if (!ids.length) return json(res, 200, { map: {} });
       const out = {};
       await Promise.all(ids.map(async id => {
+        out[id] = { rating: null };                    // yanıt gelmese bile "biliniyor" sayılmasın → null
         try {
           const r = await osApi('/subtitles/query?imdb_id=' + id + '&limit=40');
           if (r.status !== 200) return;
           let rating = 0;
-          for (const a of (r.data.data || []).map(d => d.attributes || {})) { const v = parseFloat(a.imdb_stars); if (v > rating) rating = v; }
+          for (const a of (r.data.data || []).map(d => d.attributes || {})) {
+            // imdb_stars çoğu yanıtta dolu gelir; yoksa diğer puan alanlarına da bak
+            for (const key of ['imdb_stars', 'ratings', 'avg_edit_user_rating']) {
+              const v = parseFloat(a[key]); if (v > 0 && v <= 10) rating = Math.max(rating, v);
+            }
+          }
           out[id] = { rating: rating || null };
         } catch {}
       }));

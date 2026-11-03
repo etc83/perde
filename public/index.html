@@ -330,29 +330,36 @@ async function search(q) {
     const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top/search=${e}.json`), px(`${CINE}/catalog/series/top/search=${e}.json`)]);
     if (view !== '' || LASTQ !== q) return;
     RESULTS = [...(mv.metas || []), ...(sr.metas || [])];
-    // Cinemeta meta listelerinde imdb id bulunmaz → IMDb ID'lerini ve puanı /api/cinemeta ile tamamla
+    // Cinemeta meta listelerinde imdb id/puan/year bulunmaz → tek tek tam meta ile tamamla
     await enrichImdb(RESULTS);
     if (view !== '' || LASTQ !== q) return;
     renderResults();
-    fetchOsMeta(RESULTS);
+    fetchOsMeta(RESULTS);   // puanı hâlâ bilinmeyenler için OpenSubtitles yedeği
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
-const ENRICH = {};   // v3uid -> { imdb, imdbRating }
+const ENRICH = {};   // v3uid -> { imdb, imdbRating, year }
+const numRate = m => parseFloat(String(m.imdbRating ?? '').replace(',', '.')) || 0;
 async function enrichImdb(list) {
-  const todo = list.filter(m => m.id && !m.imdb && !(m.id in ENRICH));
-  if (!todo.length) { for (const m of list) if (ENRICH[m.id]) Object.assign(m, ENRICH[m.id]); return; }
+  const needMeta = m => !m.imdb || !(numRate(m) > 0) || !metaYear(m);
+  const todo = list.filter(m => m.id && needMeta(m) && !(m.id in ENRICH));
+  if (!todo.length) { for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]); return; }
   await Promise.all(todo.map(async m => {
     const type = m.type === 'series' ? 'series' : 'movie';
     let rec = null;
     try {
       const d = await px(`${CINE}/meta/${type}/${m.id}.json`);
       const im = String(d.meta?.imdbRating || '').replace(',', '.');
-      rec = { imdb: d.meta?.imdb || '', imdbRating: im && parseFloat(im) > 0 ? im : '' };
-    } catch { rec = { imdb: '', imdbRating: '' }; }
+      rec = { imdb: d.meta?.imdb || '', imdbRating: im && parseFloat(im) > 0 ? im : '', year: d.meta?.year || '' };
+    } catch { rec = { imdb: '', imdbRating: '', year: '' }; }
     ENRICH[m.id] = rec;
-    Object.assign(m, rec);
+    backfill(m, rec);   // yalnızca eksik alanları doldur; katalogdan gelen doğru değerleri ezme
   }));
-  for (const m of list) if (!m.imdb && ENRICH[m.id]) Object.assign(m, ENRICH[m.id]);
+  for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]);
+}
+function backfill(m, r) {
+  if (r.imdb && !m.imdb) m.imdb = r.imdb;
+  if (r.imdbRating && !(numRate(m) > 0)) m.imdbRating = r.imdbRating;
+  if (r.year && !metaYear(m)) m.year = r.year;
 }
 let st;
 $('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 ? search(v) : (!v && home()), 400); };
@@ -366,11 +373,11 @@ const OSMETA = {};        // imdb id -> { rating } (Cinemeta'da puan yoksa OpenS
 let osBusy = 0;
 const osKey = m => String(m.imdb || '').replace(/^tt/, '');
 const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
-const metaRate = m => parseFloat(String(m.imdbRating).replace(',', '.')) || (OSMETA[osKey(m)]?.rating) || 0;
+const metaRate = m => numRate(m) || (OSMETA[osKey(m)]?.rating) || 0;
 const yearPool = () => [...new Set(RESULTS.map(metaYear).filter(y => y >= YEAR_MIN && y <= YEAR_MAX))].sort((a, b) => b - a);
 async function fetchOsMeta(list) {
   if (!cfg.osQuery) return;
-  const todo = [...new Set(list.map(osKey).filter(id => /^\d+$/.test(id) && !(id in OSMETA)))];
+  const todo = [...new Set(list.filter(m => !numRate(m)).map(osKey).filter(id => /^\d+$/.test(id) && !(id in OSMETA)))];
   if (!todo.length) return;
   for (const id of todo) OSMETA[id] = null;   // bekleniyor işareti
   osBusy++; refreshFiltered();
@@ -379,7 +386,7 @@ async function fetchOsMeta(list) {
       const chunk = todo.slice(i, i + 40);
       try {
         const { map } = await post('/api/osmeta', { ids: chunk });
-        for (const [k, v] of Object.entries(map || {})) OSMETA[k] = v;
+        for (const [k, v] of Object.entries(map || {})) OSMETA[k] = v ?? { rating: null };
       } catch {}
       refreshFiltered();   // parçalar halinde sonuçlar anında güncellensin
     }
@@ -395,18 +402,17 @@ function activeFiltCount(f) {
 }
 function applyFilters(list) {
   const f = FILTERS;
+  if (f.minRating > 0) fetchOsMeta(list);   // puanı eksik içerikler için OpenSubtitles sorgusunu tetikle
   let r = list.filter(m => {
     if (f.type !== 'all' && m.type !== f.type) return false;
     if (f.year) { const y = metaYear(m); if (y && y !== f.year) return false; }
     if (f.genres.length && !f.genres.some(g => (m.genres || []).includes(g))) return false;
     if (f.minRating > 0) {
-      // bilinen puanı eşik altında kalanları ele; puanı hiç bilinmeyenleri sonuca dahil etme
-      const known = parseFloat(String(m.imdbRating).replace(',', '.'));
+      // Önce bilinen puanlara bak (Cinemeta → OpenSubtitles yedeği); hiç bilinmiyorsa beklenirken göster
+      const known = numRate(m) || (OSMETA[osKey(m)]?.rating || 0);
       if (known >= f.minRating) return true;
-      if (known > 0) return false;
-      const om = OSMETA[osKey(m)];
-      if (om === undefined || om === null) return true;            // OpenSubtitles yanıtı henüz gelmedi → şimdilik göster
-      return (om.rating || 0) >= f.minRating;
+      if (known > 0) return false;                       // puanı kesin olarak eşiğin altında → ele
+      return OSMETA[osKey(m)] === undefined || OSMETA[osKey(m)] === null;  // yanıt gelmedi → şimdilik göster
     }
     return true;
   });
@@ -435,10 +441,10 @@ function renderFilterPanel() {
         <option value="0"${!f.year ? ' selected' : ''}>Tüm yıllar</option>
         ${yearPool().map(y => `<option value="${y}"${f.year === y ? ' selected' : ''}>${y}</option>`).join('')}
       </select>
-      <label class="fl" for="frt">En az IMDb puanı</label>
+      <label class="fl" for="frt">IMDb puanı</label>
       <select id="frt">
         <option value="0"${!f.minRating ? ' selected' : ''}>Fark etmez</option>
-        ${[1, 2, 3, 4, 5, 6, 7, 8].map(r => `<option value="${r}"${f.minRating === r ? ' selected' : ''}>${r}+</option>`).join('')}
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(r => `<option value="${r}"${f.minRating === r ? ' selected' : ''}>${r}+</option>`).join('')}
       </select>
     </div>
     ${tg.length ? `<div class="fgroup">
