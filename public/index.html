@@ -17,6 +17,12 @@ button:disabled{opacity:.6;cursor:default}
 button.primary{background:var(--lamp);color:#000;border-color:var(--lamp);font-weight:600}
 :focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 input,select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;width:100%}
+/* Parola göster/gizle alanı */
+.pwf{position:relative;display:block}
+.pwf input{padding-right:2.6rem}
+.pwf svg{display:block}
+.pwfbtn{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:.4rem;background:transparent;border:none;color:var(--mute);cursor:pointer;display:flex;align-items:center;line-height:1}
+.pwfbtn:hover,.pwfbtn:focus-visible{color:var(--text)}
 code{font-size:.8rem;word-break:break-all}
 header{display:flex;gap:1rem;align-items:center;padding:.8rem 1.5rem;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5;flex-wrap:wrap}
 header h1{font-size:1.5rem;color:var(--lamp);margin-right:.5rem}
@@ -318,6 +324,31 @@ html.tv .railrow::-webkit-scrollbar{display:none}
 const $ = s => document.querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Parola göster/gizle: type=password olan her inputun yanına göz ikonu düğmesi ekler (idempotent).
+const EYE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7.5 11-7.5S23 12 23 12s-4 7.5-11 7.5S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.6 10.6 0 0 1 12 19.5C5 19.5 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.4 9.4 0 0 1 12 4.5c7 0 11 7.5 11 7.5a18.7 18.7 0 0 1-2.16 3.3"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+function pwReveal(scope) {
+  (scope || document).querySelectorAll('input[type=password]').forEach(inp => {
+    if (inp.dataset.reveal === '1') return;
+    inp.dataset.reveal = '1';
+    const wrap = document.createElement('span');
+    wrap.className = 'pwf';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'pwfbtn';
+    btn.setAttribute('aria-label', 'Parolayı göster/gizle');
+    btn.title = 'Parolayı göster/gizle';
+    btn.innerHTML = EYE_SVG;
+    btn.onclick = () => {
+      const shown = inp.type === 'password';
+      inp.type = shown ? 'text' : 'password';
+      btn.innerHTML = shown ? EYE_OFF_SVG : EYE_SVG;
+      inp.focus();
+    };
+    wrap.appendChild(btn);
+  });
+}
 const CINE = 'https://v3-cinemeta.strem.io';
 let cfg = {}, D = { library: [], progress: {} }, META = {}, view = 'home', redrawEps = null, saveT, curUrl = '', P = null, curState = null;
 
@@ -1351,6 +1382,7 @@ function settings() {
     <label for="f_lang">Altyazı dilleri (virgülle)</label><input id="f_lang" value="${esc(cfg.langs)}" placeholder="tr,en">
     <div class="row"><button class="primary" id="save">Kaydet</button><button id="tAddon">Eklentiyi sına</button></div><p id="sres"></p>` : ''}</div>`;
   const out = (id, m, bad) => { $(id).textContent = m; $(id).className = bad ? 'err' : ''; };
+  pwReveal($('#main'));   // parola/anahtar alanlarına göster-gizle düğmesi ekle
   $('#chpw').onclick = async () => {
     try { await post('/api/me/password', { old: $('#f_old').value, pw: $('#f_new').value }); $('#f_old').value = $('#f_new').value = ''; out('#pres', 'Parola değiştirildi.'); }
     catch (e) { out('#pres', e.message, true); }
@@ -1379,6 +1411,7 @@ async function usersView() {
       <label for="u_pw">Parola (en az 6 karakter)</label><input id="u_pw" type="password" autocomplete="new-password">
       <label for="u_role">Rol</label><select id="u_role"><option value="user">Kullanıcı</option><option value="admin">Yönetici</option></select>
       <div class="row"><button class="primary" id="u_add">Ekle</button></div><p id="ures"></p></div>`;
+    pwReveal($('#main'));   // parola alanına göster-gizle düğmesi ekle
     const err = e => { $('#ures').textContent = e.message; $('#ures').className = 'err'; };
     $('#u_add').onclick = () => post('/api/users', { name: $('#u_name').value, password: $('#u_pw').value, role: $('#u_role').value }).then(usersView).catch(err);
     $$('#ulist [data-a]').forEach(b => b.onclick = () => {
