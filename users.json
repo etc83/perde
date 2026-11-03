@@ -2,6 +2,15 @@
   "secret": "2727216e1f386aa46534fa0107239ee1067097486f8b0f760b1f5aeaa35fcb4e",
   "users": [
     {
+      "id": "u_test",
+      "name": "test",
+      "role": "admin",
+      "pw": "ab12cd34ef56ab78cd90ef12ab34cd56:30445f09a92ace2b2141da46469372dc64a0a82833240e47bfe3a1bb71a7a5736bc77c5715ed460cfc567bedc46c0409992f562ab1226f17a6c50078dc19a41a",
+      "pv": 0
+    }
+  ],
+  "_bak": [
+    {
       "id": "u_085dc40e",
       "name": "admin",
       "role": "admin",
