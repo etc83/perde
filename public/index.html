@@ -260,19 +260,27 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 @media (max-width:700px){.fpanel{grid-template-columns:1fr}.fsort{margin-left:0}}
 
 /* ---- Android TV / 10-foot modu ---- */
-html.tv{font-size:18px}
-html.tv body{zoom:1.25}
-html.tv header,html.tv main{padding-left:3.5vw;padding-right:3.5vw}
-html.tv #q{max-width:420px}
-html.tv .card{width:clamp(220px,17vw,290px)}
-html.tv .rhead h3{font-size:1.4rem}
-html.tv .tab,html.tv nav button{padding:.6rem 1.2rem;font-size:1.05rem}
-html.tv .rnav button{width:3rem;height:3rem;font-size:1.5rem}
+/* TV'de küçültülmüş ölçek: ekranda en az 2 kategori satırı görünür */
+html.tv{font-size:14px}
+html.tv header,html.tv main{padding-left:3vw;padding-right:3vw}
+html.tv header{padding-top:.5rem;padding-bottom:.5rem}
+html.tv #q{max-width:340px}
+html.tv .card{width:clamp(130px,10.5vw,180px)}
+html.tv .rhead h3{font-size:1.05rem}
+html.tv .rhead{margin:.9rem 0 .4rem}
+html.tv .tab,html.tv nav button{padding:.4rem .9rem;font-size:.95rem}
+html.tv .rnav button{width:2.2rem;height:2.2rem;font-size:1.1rem}
 html.tv button:focus-visible,html.tv input:focus-visible,html.tv select:focus-visible{outline:4px solid var(--lamp);outline-offset:4px;box-shadow:0 0 24px rgba(255,196,107,.45)}
 html.tv :focus:not(:focus-visible){outline:none}
 html.tv .tvhide{display:none!important}
 html.tv .railrow{scrollbar-width:none}
 html.tv .railrow::-webkit-scrollbar{display:none}
+/* Detay/kaynak sheet'i TV'de tam ekran panel gibi: arkadaki liste görünmez ve odak karışmaz */
+html.tv .sheet.open{background:#000}
+html.tv .sheet>.box{width:min(96vw,1200px);max-width:none;margin:0 auto;padding:1.2rem 1.6rem}
+html.tv .detail{grid-template-columns:minmax(0,1fr) minmax(300px,36%);gap:1.4rem}
+html.tv .srcs .item,html.tv .list .item{padding:.5rem .6rem;font-size:.95rem}
+html.tv .hero img{max-height:30vh}
 </style>
 </head>
 <body>
@@ -362,7 +370,16 @@ const post = (p, b) => j(p, { method: 'POST', headers: { 'content-type': 'applic
 const px = u => j('/api/proxy?url=' + encodeURIComponent(u));
 let tt;
 function toast(m, ms = 3500) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => t.style.display = 'none', ms); }
-const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); if (open && tvMode()) setTimeout(() => { const f = $(id).querySelector('.box button:not([disabled])'); if (f) f.focus({ preventScroll: true }); }, 80); };
+const sheet = (id, open) => {
+  $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0;
+  document.body.classList.toggle('lock', !!$('.sheet.open'));
+  // Sheet açıkken arka planı kumanda/tarayıcı odak gezinmesinden tamamen çıkar
+  // (Chrome OS / Android TV spatial nav bu özniteliklere uyar; eski tarayıcılar yoksayar).
+  const anyOpen = !!$('.sheet.open');
+  try { $('#main').toggleAttribute('inert', anyOpen); } catch {}
+  $('#main').setAttribute('aria-hidden', String(anyOpen));
+  if (open && tvMode()) { tvActive = true; setTimeout(() => { const f = $(id).querySelector('.box button:not([disabled])'); if (f) f.focus({ preventScroll: true }); }, 80); }
+};
 let lastSynced = 0;                                        // en son sunucu eşitleme anı (zaman damgası)
 const saveData = () => { clearTimeout(saveT); saveT = setTimeout(() => post('/api/data', D).catch(() => {}), 600); };
 // Kalıcı ve anında ilerleme yazımı: fetch keepalive, sekmeyi yenileme/kapama anında da sunucuya ulaşır
@@ -466,7 +483,17 @@ const listHtml = ms => isRailView() ? railsHtml(ms) : grid(ms);
 const TV_NAVSEL = ['button:not(:disabled)', 'input', 'select', 'textarea', 'a[href]', '.card'].join(',');
 const tvMode = () => document.documentElement.classList.contains('tv') || matchMedia('(pointer:coarse)').matches;
 let tvActive = false;                       // kullanıcı gerçekten kumandayla geziniyor mu
-function tvFocusables() { return [...document.querySelectorAll(TV_NAVSEL)].filter(el => el.offsetParent !== null && !el.closest('[hidden]')); }
+// Odak kapsama alanı (scope): açık bir sheet varsa yalnızca onun içi, yoksa ana liste.
+// Böylece kaynak/sezon-bölüm listesi açılınca kumanda arka plandaki afişlere kaçmaz.
+function tvScope() {
+  const sh = [...document.querySelectorAll('.sheet.open')].pop();
+  if (sh) return sh.querySelector('.box') || sh;
+  return $('#main') || document.body;
+}
+function tvFocusables() {
+  const sc = tvScope();
+  return [...sc.querySelectorAll(TV_NAVSEL)].filter(el => el.offsetParent !== null && !el.closest('[hidden]'));
+}
 function tvCenter(el) { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
 function tvMove(dir) {
   const cur = document.activeElement && document.activeElement.matches ? document.activeElement : null;
@@ -496,7 +523,13 @@ window.addEventListener('keydown', e => {
   const inField = ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName) && !(ae.type === 'range' || ae.type === 'search' || ae.type === 'checkbox');
   if (inField) return;                      // yazı alanlarında ok tuşları normal çalışsın
   if (!tvActive && !tvMode()) return;       // fare/klavye kullanıcılarına dokunma
-  const moved = tvMove(K);
+  tvActive = true;                          // TV modunda ok tuşu her zaman gezinme modunu açar
+  let moved = false;
+  if (ae && tvScope().contains(ae)) moved = tvMove(K);   // sheet içinden çıkmak istenmiyorsa:
+  else if (ae && ae.closest('.sheet')) moved = tvMove(K);
+  else {                                    // odak kapsama dışında (arka plan kalmış): kapsamın ilk öğesine dön
+    const list = tvFocusables(); if (list.length) { list[0].focus({ preventScroll: true }); moved = true; }
+  }
   if (!moved) {
     const row = ae && ae.closest('.railrow');
     if (row && (K === 'L' || K === 'R')) { row.scrollBy({ left: (K === 'R' ? 1 : -1) * Math.max(240, row.clientWidth * .85), behavior: 'smooth' }); e.preventDefault(); return; }
@@ -862,10 +895,12 @@ async function openDetail(type, id) {
           const f = fOf(D.progress[id]?.eps?.[s + ':' + v.episode]), k = s + ':' + v.episode;
           return `<button class="item ep${sel === k ? ' sel' : ''}" data-e="${v.episode}"><span>${v.episode}. ${esc(v.name || v.title || 'Bölüm ' + v.episode)}</span><small>${f >= .92 ? '✓ izlendi' : f > 0 ? '%' + Math.round(f * 100) : ''}</small>${f > 0 ? `<div class="bar has"><i style="width:${Math.round(f * 100)}%"></i></div>` : ''}</button>`;
         }).join('');
-        $$('#eps .ep').forEach(b => b.onclick = () => { sel = s + ':' + b.dataset.e; draw(); findStreams({ ...base, ep: { season: s, episode: +b.dataset.e }, sid: `${id}:${s}:${b.dataset.e}` }); if (matchMedia('(max-width:860px)').matches) $('.srcs').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        $$('#eps .ep').forEach(b => b.onclick = () => { sel = s + ':' + b.dataset.e; draw(); findStreams({ ...base, ep: { season: s, episode: +b.dataset.e }, sid: `${id}:${s}:${b.dataset.e}` }); if (matchMedia('(max-width:860px)').matches) $('.srcs').scrollIntoView({ behavior: 'smooth', block: 'start' }); if (tvMode()) setTimeout(() => $('#streams .src')?.focus({ preventScroll: true }) || $('.srcs')?.scrollIntoView({ block: 'nearest' }), 150); });
       };
       redrawEps = () => { if ($('#sSel')) draw(); };
       $('#sSel').onchange = draw; draw();
+      // TV'de sezon/bölüm seçilen satır odaklanınca görünsün
+      if (tvMode()) $('#sSel')?.scrollIntoView({ block: 'nearest' });
     } else findStreams({ ...base, sid: id });
   } catch (e) { box.innerHTML = `<button class="x" id="cd">Kapat</button><p class="err">${esc(e.message)}</p>`; $('#cd').onclick = () => sheet('#detail', false); }
 }
@@ -887,6 +922,8 @@ async function findStreams(ctx) {
       return `<button class="src" data-i="${i}"><span class="s1">${esc(tl[0] || nm[0] || 'Kaynak')}</span><span class="s2">${esc(tl.slice(1).join(' · '))}</span><span class="s3">${tag}${directOf(null, s) ? '<span class="tag ok">Doğrudan</span>' : '<span class="tag q">Yeniden paketlenir</span>'}${q ? `<span class="tag q">${esc(q)}</span>` : ''}</span></button>`;
     }).join('');
     $$('#streams .src').forEach(b => b.onclick = () => play(streams[+b.dataset.i], ctx, b));
+    // TV: kaynaklar yüklenince odağı ilk kaynağa taşı (kumanda arka plandaki afişlerde kalmasın)
+    if (tvMode()) { tvActive = true; setTimeout(() => $('#streams .src')?.focus({ preventScroll: true }), 60); }
   } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
