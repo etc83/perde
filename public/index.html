@@ -127,6 +127,8 @@ header{padding-top:max(.8rem,env(safe-area-inset-top));padding-left:max(1.5rem,e
 .ovl > *{pointer-events:auto}
 #fsbox.idle .ovl:not(:hover):not(.show){opacity:0;pointer-events:none}
 #fsbox.idle{cursor:none}
+/* oynatıcı kapalıyken overlay tıklamaları yutmasın (sayfa "donmuş" gibi görünmesin) */
+#player:not(.open) .ovl{opacity:0!important;pointer-events:none!important}
 .otop{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;background:linear-gradient(rgba(0,0,0,.78),transparent)}
 .otitle{display:flex;align-items:baseline;gap:.6rem;min-width:0}
 .otitle strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1.05rem}
@@ -325,6 +327,16 @@ let tt;
 function toast(m, ms = 3500) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => t.style.display = 'none', ms); }
 const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); if (open && tvMode()) setTimeout(() => { const f = $(id).querySelector('.box button:not([disabled])'); if (f) f.focus({ preventScroll: true }); }, 80); };
 const saveData = () => { clearTimeout(saveT); saveT = setTimeout(() => post('/api/data', D).catch(() => {}), 600); };
+// Cihazlar arası ilerleme çakışması: aynı içerik iki cihazda açılıp sırayla kapatıldığında,
+// eski bir sekmenin gecikmeli kaydı yeni konumu ezmesin → her kayıtten önce sunucudaki taze hali oku.
+const syncProgress = async id => {
+  if (!id || !me) return;
+  try {
+    const fresh = await j('/api/progress?id=' + encodeURIComponent(id));
+    const cur = D.progress[id];
+    if (fresh && typeof fresh === 'object' && (!cur || (fresh.u || 0) >= (cur.u || 0))) D.progress[id] = fresh;   // sunucudaki daha yeni kayıt kazanır
+  } catch {}
+};
 
 // ---------- İzleme ilerlemesi ----------
 const fOf = x => x && x.d ? Math.min(1, x.t / x.d) : 0;
@@ -1121,6 +1133,7 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   stopPlayback();
   curUrl = ''; curState = { url, ctx, s };                    // url = sunucu bileti (gerçek adres tarayıcıya gitmez)
   const key = ctx.ep ? `${ctx.ep.season}:${ctx.ep.episode}` : 'm';
+  await syncProgress(ctx.id);                                 // cihazlar arası çakışma: diğer cihazın en son kaydettiği konumu önce sunucudan al
   const rec = D.progress[ctx.id] || (D.progress[ctx.id] = { type: ctx.type, eps: {} });
   rec.type = ctx.type; if (ctx.total) rec.total = ctx.total;
   let start = opt.at ?? (rec.eps[key]?.t || 0); if (opt.at == null && fOf(rec.eps[key]) > .92) start = 0;
@@ -1208,9 +1221,10 @@ async function closePlayer() {
 let idleT;
 function wake() {
   const box = $('#fsbox'); box.classList.remove('idle'); clearTimeout(idleT);
-  if (P && !P.el.paused) idleT = setTimeout(() => { box.classList.add('idle'); if (!P?.el.paused) wake(); }, 3500);   // kontroller kaybolur; video hâlâ oynuyorsa gizli durum korunur (tek seferlik zamanlayıcı: boş döngü yok)
+  if (P && !P.el.paused) idleT = setTimeout(() => { box.classList.add('idle'); }, 3000);   // 3 sn hareketsizlikte kontroller gizlenir; fare/hareket geri getirir
 }
 ['mousemove', 'pointerdown', 'touchstart'].forEach(ev => $('#fsbox').addEventListener(ev, wake, { passive: true }));
+document.addEventListener('mousemove', () => { if (P && !P.el.paused && $('#player').classList.contains('open')) wake(); }, { passive: true });   // masaüstü: imleç hareketi de kontrolleri uyandırır
 ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { $('#fsbox').classList.toggle('fs', fsOn()); updFsBtn(); wake(); }));
 const updFsBtn = () => { $('#cFs').textContent = fsOn() ? '🗖' : '⛶'; };
 function enterFs() {
