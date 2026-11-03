@@ -398,9 +398,22 @@ http.createServer(async (req, res) => {
         const b = await readBody(req);
         if (!Array.isArray(b.library) || typeof b.progress !== 'object' || !b.progress) return json(res, 400, { error: 'Geçersiz veri' });
         const old = rd(f, { library: [], progress: {} });
-        wr(f, { library: b.library, progress: b.progress, prefs: old.prefs });
+        // Birleşik yazım: içerik bazında en yeni zaman damgalı kayıt kazanır
+        // (iki cihaz aynı anda farklı içerik izlerse eski tam-yazım diğerinin ilerlemesini silerdi)
+        const merged = { ...(old.progress || {}) };
+        for (const [id, rec] of Object.entries(b.progress)) {
+          const prev = merged[id];
+          if (!prev || (rec?.u || 0) >= (prev.u || 0)) merged[id] = rec;
+        }
+        wr(f, { library: b.library, progress: merged, prefs: old.prefs });
       }
       return json(res, 200, rd(f, { library: [], progress: {} }));
+    }
+    if (pn === '/api/progress' && !POST) {                // tek içeriğin güncel ilerleme kaydı (cihazlar arası çakışmayı önler)
+      const id = new URL(req.url, 'http://x').searchParams.get('id');
+      if (!id) return json(res, 400, { error: 'id gerekli' });
+      const d = rd(dataFile(user.id), { progress: {} });
+      return json(res, 200, d.progress?.[id] || null);
     }
     if (pn === '/api/prefs') {                          // içerik filtre tercihi (view'dan bağımsız, cihazlar arası taşınır)
       const f = dataFile(user.id);
