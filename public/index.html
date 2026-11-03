@@ -275,12 +275,6 @@ html.tv .railrow::-webkit-scrollbar{display:none}
 
 <div class="sheet" id="detail"><div class="box" id="detailBox"></div></div>
 <div class="sheet" id="player"><div class="box">
-  <div id="srcPick">
-    <button id="spBack">← Geri</button>
-    <h2 id="spTitle"></h2>
-    <p class="mute">Kaynak seç →</p>
-    <div class="list" id="spList"></div>
-  </div>
   <div id="fsbox">
     <div id="stage"></div>
     <div class="ovl" id="ovl">
@@ -298,7 +292,6 @@ html.tv .railrow::-webkit-scrollbar{display:none}
         <div class="orow">
           <span id="cTime">0:00 / 0:00</span>
           <span class="sp"></span>
-          <button id="remux" class="tvhide" style="display:none">Uyumluluk modu</button>
           <button id="iina" class="tvhide">IINA'da aç</button><button id="vlc" class="tvhide">VLC'de aç</button><button id="dl" class="tvhide">Dosyayı indir</button>
           <button id="cMute" aria-label="Sesi aç/kapat">🔈</button>
         </div>
@@ -921,7 +914,7 @@ function stopPlayback() {
     try { P.el.pause(); P.el.removeAttribute('src'); P.el.load(); } catch {}
     P = null;
   }
-  $('#stage').innerHTML = ''; $('#stage').classList.remove('busy'); $('#fsbox').classList.remove('idle'); $('#remux').style.display = 'none';
+  $('#stage').innerHTML = ''; $('#stage').classList.remove('busy'); $('#fsbox').classList.remove('idle');
   $('#audSel').innerHTML = ''; $('#audBox').style.display = 'none'; $('#subSel').innerHTML = '<option value="">Kapalı</option>'; subMsg('');
   $$('#player .ogroup .popwrap').forEach(w => w.remove());
   updPlayBtn();
@@ -1091,7 +1084,7 @@ async function startSession(st, ss, aidx) {
   }
   v.play().catch(() => {});
   applySub(st); ensureSubs(st);
-  $('#pinfo').textContent = st.dispTxt + ' · Uyumluluk modu';
+  $('#pinfo').textContent = st.dispTxt;
   st.hb = setInterval(() => post('/api/hls/pos', { id: st.sid, pos: v.currentTime }).then(r => { if (P === st && r.gen) st.gen = r.gen; }).catch(() => {}), 2000);
 }
 // İstenen saniyeye (anahtar kareden sonraki fark ya da kayıtlı konum) tarayıcı hazır olunca atlar; tutmazsa birkaç kez dener.
@@ -1154,11 +1147,15 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   v.addEventListener('volumechange', () => { $('#cMute').textContent = (P?.el.muted || P?.el.volume === 0) ? '🔇' : '🔈'; });
   v.addEventListener('ended', () => { if (P !== st) return; const x = rec.eps[key]; if (x) x.t = x.d; saveData(); });
 
-  $('#remux').style.display = direct ? '' : 'none';
   loadOsSubs(st);
   if (direct) {
     if (start > 5) { st.want = start; st.wantDone = false; setTimeout(() => { st.wantDone = true; }, 10000); }   // doğrudan modda kaldığınız saniyeye atla
-    v.addEventListener('error', () => toast('Tarayıcı bu dosyayı oynatamadı. “Uyumluluk modu”nu deneyin.', 8000));
+    v.addEventListener('error', () => {                       // tarayıcı doğrudan oynatamazsa: sunucu paketlemesiyle otomatik devam et (kullanıcı müdahalesi gerekmez)
+      if (P !== st || st.retryHls) return;
+      st.retryHls = true;
+      toast('Doğrudan oynatılamadı, sunucu paketlemesiyle açılıyor…', 5000);
+      openPlayer(url, ctx, s, true, { at: absT(), aidx: st.aidx });
+    }, { once: true });
     v.src = '/api/direct?t=' + url;                         // sunucu nihai adrese yönlendirir (video doğrudan CDN'den akar)
     post('/api/probe', { tok: url }).then(r => { if (P === st) { st.trueDur = r.duration || 0; fillTracks(st, r.audios, r.subs); } }).catch(() => { if (P === st) { st.embLoaded = true; autoSub(st); } });   // ffmpeg yoksa sessizce atlanır
     return;
@@ -1205,9 +1202,8 @@ $('#audSel').onchange = e => {
   const st = P; if (!st) return;
   const idx = +e.target.value, at = absT();
   if (st.sid) startSession(st, at, idx).catch(err => toast(err.message, 6000));
-  else if (idx !== st.defAidx) openPlayer(st.url, st.ctx, st.s, true, { at, aidx: idx });   // doğrudan modda ses değişimi: uyumluluk moduna geç
+  else if (idx !== st.defAidx) openPlayer(st.url, st.ctx, st.s, true, { at, aidx: idx });   // doğrudan modda ses değişimi: sunucu paketlemesine geç
 };
-$('#remux').onclick = () => curState && openPlayer(curState.url, curState.ctx, curState.s, true, { at: absT() });
 window.addEventListener('pagehide', () => { if (P?.sid) stopSid(P.sid); });
 document.addEventListener('keydown', e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range') return;
