@@ -343,7 +343,7 @@ function railsHtml(ms) {
     const g = ms.filter(m => m.type === t);
     if (!g.length) continue;
     const parts = FILTERS.sort === 'rel' ? chunkList(g, RAIL_CHUNK) : [g];
-    parts.forEach((p, i) => { html += railSec(parts.length > 1 ? `${label} · ${i * RAIL_CHUNK + 1}–${Math.min((i + 1) * RAIL_CHUNK, g.length)}` : label, p); });
+    parts.forEach(p => { html += railSec(label, p); });
   }
   const other = ms.filter(m => m.type !== 'movie' && m.type !== 'series');
   if (other.length) html += railSec('Diğer', other);
@@ -364,7 +364,6 @@ async function home() {
     if (!CATALOG.loaded) await loadCatalog();   // Filmler/Diziler sekmeleri + kategori (tür) bazlı yatay satırlar
     if (view !== 'home') return;
     renderView();
-    if (FILTERS.minRating > 0) fetchOsMeta(HOME);
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p><button id="retryHome">Tekrar dene</button>`; $('#retryHome').onclick = home; }
 }
 
@@ -388,15 +387,24 @@ async function loadCatalog() {
   CATALOG.loaded = true;
 }
 function railRows(t) {
-  const f = FILTERS, groups = [];
+  const sortMs = ms => {
+    const s = FILTERS.sort;
+    if (s === 'rel') return [...ms].sort((a, b) => popOf(b) - popOf(a));
+    if (s === 'rating') return [...ms].sort((a, b) => metaRate(b) - metaRate(a));
+    if (s === 'year') return [...ms].sort((a, b) => metaYear(b) - metaYear(a));
+    if (s === 'az') return [...ms].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    return ms;
+  };
+  const groups = [];
   for (const g of CATALOG.genres[t] || []) {
-    const ms = applyFilters(g.ms);
+    const ms = sortMs(dedupe(g.ms));
     if (ms.length) groups.push({ title: g.tr, ms });
   }
+  // Sekme içindeki her içerik en az bir kategori satırında görünsün.
   const known = new Set(groups.flatMap(x => x.ms.map(m => m.id)));
-  const rest = dedupe(applyFilters((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id)));
+  const rest = sortMs(dedupe((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id)));
   if (rest.length >= 8) groups.unshift({ title: 'Popüler', ms: rest });
-  else for (const m of rest) for (const grp of groups) if (!grp.ms.some(x => x.id === m.id) && (grp.ms.push(m), true)) break;   // sekme içindeki tüm içerikler görünsün
+  else for (const m of rest) { const grp = groups.find(x => !x.ms.some(y => y.id === m.id)); if (grp) grp.ms.push(m); }
   return groups;
 }
 async function search(q) {
@@ -493,7 +501,7 @@ function activeFiltCount(f) {
   return n;
 }
 function applyFilters(list) {
-  const f = FILTERS;
+  const f = view === 'home' ? { ...FILTERS, type: 'all', year: 0, genres: [], minRating: 0 } : FILTERS;   // Keşfet'te arama filtresi uygulanmaz; yalnızca sıralama geçerli
   if (f.minRating > 0) fetchOsMeta(list);   // puanı eksik içerikler için OpenSubtitles sorgusunu tetikle
   let r = list.filter(m => {
     if (f.type !== 'all' && m.type !== f.type) return false;
@@ -595,10 +603,9 @@ function renderView() {
 function homePool() { return HOME.filter(m => m.type === CATALOG.tab); }
 function renderHome() {
   const t = CATALOG.tab;
-  gridHtml = railsHtml(homePool());   // satırlar sekmenin kategorilerinden üretilir (railRows içinde filtrelenir)
-  const cnt = tt => dedupe((CATALOG.genres[tt] || []).flatMap(g => g.ms)).length;
+  gridHtml = railsHtml(homePool());   // satırlar sekmenin kategorilerinden üretilir (railRows içinde sıralanır)
   const tabsHtml = `<div class="tabs" role="tablist">
-    ${[['movie', 'Filmler'], ['series', 'Diziler']].map(([v, l]) => `<button class="tab${t === v ? ' on' : ''}" data-t="${v}" role="tab" aria-selected="${t === v}">${l} <small>${cnt(v)}</small></button>`).join('')}
+    ${[['movie', 'Filmler'], ['series', 'Diziler']].map(([v, l]) => `<button class="tab${t === v ? ' on' : ''}" data-t="${v}" role="tab" aria-selected="${t === v}">${l}</button>`).join('')}
     <span class="fsort"><label for="fsel">Sırala</label><select id="fsel">
       <option value="rel"${FILTERS.sort === 'rel' ? ' selected' : ''}>Popülerlik</option>
       <option value="rating"${FILTERS.sort === 'rating' ? ' selected' : ''}>IMDb puanı</option>
