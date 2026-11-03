@@ -963,7 +963,7 @@ function settings() {
     <div class="row"><button id="chpw">Parolayı değiştir</button></div><p id="pres"></p>
     ${admin ? `<h2 style="margin-top:2rem">Sunucu ayarları</h2>
     <p class="mute">Bilgiler yalnızca bu bilgisayardaki config.json dosyasında saklanır ve tüm kullanıcılar için geçerlidir. Kullanıcılar bu adresleri göremez.</p>
-    <label for="f_addon">Kaynak eklentisi (Torrentio manifest adresi)</label><input id="f_addon" value="${esc(cfg.addon)}" placeholder="https://torrentio.strem.fun/…/manifest.json" autocomplete="off">
+    <label for="f_addon">Kaynak eklentisi (AIOStreams manifest adresi)</label><input id="f_addon" value="${esc(cfg.addon)}" placeholder="https://aiostreams.elfhosted.com/stremio/…/manifest.json" autocomplete="off">
     <label for="f_oskey">OpenSubtitles API anahtarı ${cfg.osSet ? '(kayıtlı)' : '(isteğe bağlı)'}</label><input id="f_oskey" type="password" placeholder="opensubtitles.com/consumers" autocomplete="off">
     <label for="f_osu">OpenSubtitles kullanıcı adı</label><input id="f_osu" value="${esc(cfg.osUser)}" autocomplete="off">
     <label for="f_osp">OpenSubtitles parolası</label><input id="f_osp" type="password" autocomplete="off" placeholder="${cfg.osSet ? '(kayıtlı)' : ''}">
