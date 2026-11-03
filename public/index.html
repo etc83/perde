@@ -1090,11 +1090,12 @@ function openPop(kind) {
   };
   const hd = t => { const d = document.createElement('div'); d.className = 'phd'; d.textContent = t; list.appendChild(d); };
   const sep = () => { const d = document.createElement('div'); d.className = 'sep'; list.appendChild(d); };
-  // OPTGROUP'lar menüde yapışkan başlık + ayraç olarak gösterilir; uzun etiketler satır içinde kırılır, gerekirse kısaltılır
+  // OPTGROUP'lar menüde yapışkan başlık + ayraç olarak gösterilir; uzun etiketler satır içinde kırılır, gerekirse kısaltılır.
+  // Düz liste (.options) optgroup sırasını bozduğu için ağaç gezilir: doğrudan option'lar + alt option'lar belge sırasıyla.
   const shorten = s => { s = String(s).replace(/\s+/g, ' ').trim(); return s.length > 96 ? s.slice(0, 95).trimEnd() + '…' : s; };
-  [...sel.options].forEach(o => {
-    if (o.tagName === 'OPTGROUP') { hd(shorten(o.label)); o.querySelectorAll('option').forEach(i => mk(shorten(i.textContent), i.value)); return; }
-    mk(shorten(o.textContent), o.value);
+  [...sel.children].forEach(node => {
+    if (node.tagName === 'OPTGROUP') { hd(shorten(node.label)); [...node.querySelectorAll('option')].forEach(i => mk(shorten(i.textContent), i.value)); return; }
+    if (node.tagName === 'OPTION') mk(shorten(node.textContent), node.value);
   });
   if (kind === 's') { sep(); mk('−0,5 sn gecik', 'n-', 'nudge'); mk('+0,5 sn gecik', 'n+', 'nudge'); }
   const wrap = document.createElement('div'); wrap.className = 'popwrap'; wrap.appendChild(list);
