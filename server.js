@@ -17,9 +17,18 @@ const rd = (n, d) => { try { return JSON.parse(fs.readFileSync(path.join(__dirna
 const wr = (n, o) => { const f = path.join(__dirname, n); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2), { mode: 0o600 }); };
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
 const readBody = req => new Promise(r => {
+  const ct = String(req.headers['content-type'] || '');
+  const isForm = /application\/x-www-form-urlencoded/i.test(ct);   // sendBeacon bu tiple gönderir
   let b = '';
   req.on('data', d => { b += d; if (b.length > 5e6) req.destroy(); });
-  req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch { r({}); } });
+  req.on('end', () => {
+    if (!isForm) { try { r(JSON.parse(b || '{}')); } catch { r({}); } return; }
+    try {
+      const p = new URLSearchParams(b), o = {};
+      for (const [k, v] of p) { try { o[k] = JSON.parse(v); } catch { o[k] = v; } }
+      r(o);
+    } catch { r({}); }
+  });
 });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isHttp = u => /^https?:\/\//i.test(u || '');
