@@ -71,13 +71,11 @@ section h2{margin:1.8rem 0 .8rem}
 .tag{border:1px solid var(--lamp);color:var(--lamp);border-radius:99px;padding:0 .55rem;font-size:.75rem}
 .tag.ok{border-color:#58c27d;color:#58c27d}.tag.q{border-color:var(--line);color:var(--mute)}
 
-/* Oynatıcı */
-#player{padding:1rem}
-#player .box{padding:0;overflow:hidden;background:#000}
-.ptop{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.7rem 1rem;background:var(--bg)}
-.ptop .sp{flex:1}
-#stage{background:#000}
-#stage video{display:block;width:100%;height:76vh;background:#000}
+/* Oynatıcı — Prime Video benzeri sade, tam ekran katman */
+#player{padding:0;background:#000}
+#player .box{padding:0;border:0;border-radius:0;max-width:none;margin:0;min-height:100dvh;height:100dvh;background:#000;display:flex;flex-direction:column}
+#stage{background:#000;flex:1;min-height:0}
+#stage video{display:block;width:100%;height:100%;background:#000}
 #toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--lamp);padding:.5rem 1rem;border-radius:8px;display:none;z-index:20;max-width:90vw}
 label{display:block;margin:.8rem 0 .2rem;color:var(--mute);font-size:.85rem}
 
@@ -111,46 +109,67 @@ header{padding-top:max(.8rem,env(safe-area-inset-top));padding-left:max(1.5rem,e
   .hero img{width:96px}
   .hero h2{font-size:1.35rem}
   #player{background:#000}
-  #player .box{padding:0;min-height:100%}
-  .ptop{padding:.6rem .8rem;gap:.4rem;padding-top:max(.6rem,env(safe-area-inset-top))}
-  #ptitle{flex:1 1 100%;font-size:.95rem}
-  .ptop .sp{display:none}
-  .ptop button{flex:1 1 auto;padding:.4rem .6rem;font-size:.85rem}
-  #stage video{height:56.25vw}
+  #player .box{padding:0;min-height:100dvh;height:100dvh}
+  .otop{padding:.5rem .7rem;gap:.35rem;padding-top:max(.5rem,env(safe-area-inset-top))}
+  .otitle strong{font-size:.95rem}
+  .obig button{width:3.4rem;height:3.4rem;font-size:1.6rem}
+  .obot{padding:.5rem .8rem max(.7rem,env(safe-area-inset-bottom))}
+  .orow button:not(#cMute){display:none}
 }
 @media (max-height:500px) and (orientation:landscape){
-  #stage video{height:calc(100dvh - 56px)}
-  .ptop{padding:.3rem .8rem}
-  #ptitle{flex:1 1 auto}
+  .otop{padding:.25rem .7rem}
+  .otitle{flex:1 1 auto}
 }
 
-/* ---- Oynatıcı kontrolleri ---- */
-#fsbox{position:relative;background:#000}
-#fsbox.fs{display:block;width:100%;height:100%}
-#fsbox.fs #stage{position:absolute;inset:0}
-#fsbox.fs #stage video{width:100%;height:100%}
-#fsbox.fs .bars{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.88) 45%);transition:opacity .25s}
-#fsbox.fs .ctl,#fsbox.fs .sbar{background:none;color:#fff}
-#fsbox.fs.idle{cursor:none}
-#fsbox.fs.idle .bars:not(:hover){opacity:0;pointer-events:none}
-#stage{position:relative}
-#stage.busy::after{content:'Hazırlanıyor…';position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-size:1.05rem;pointer-events:none}
-#stage video{height:min(76vh,calc(100dvh - 210px))}
-.ctl{display:flex;align-items:center;gap:.5rem;padding:.4rem .8rem;background:var(--bg)}
-.ctl input[type=range]{flex:1;width:auto;padding:0;min-height:0;border:0;background:none;accent-color:var(--lamp)}
-.ctl span{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--mute);font-size:.85rem}
-.sbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.5rem .8rem;background:var(--bg)}
-.sbar label{display:inline;margin:0}
-.sbar select{width:auto;max-width:min(300px,60vw)}
+/* ---- Oynatıcı kontrolleri: videonun üstünde katman (Prime Video benzeri) ---- */
+#fsbox{position:relative;background:#000;flex:1;min-height:0;display:flex;flex-direction:column}
+.ovl{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;pointer-events:none;transition:opacity .25s}
+.ovl > *{pointer-events:auto}
+#fsbox.idle .ovl:not(:hover):not(.show){opacity:0;pointer-events:none}
+#fsbox.idle{cursor:none}
+.otop{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;background:linear-gradient(rgba(0,0,0,.78),transparent)}
+.otitle{display:flex;align-items:baseline;gap:.6rem;min-width:0}
+.otitle strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1.05rem}
+.otitle span{white-space:nowrap;font-size:.8rem}
+.sp{flex:1}
+.ogroup{position:relative}
+.ovl button{background:rgba(20,20,20,.55);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:8px;min-width:2.4rem}
+.ovl button:hover{background:rgba(40,40,40,.85);border-color:var(--lamp)}
+.ovl button.on{border-color:var(--lamp);background:rgba(60,50,30,.9)}
+select.pop{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.popwrap{position:absolute;top:calc(100% + .5rem);right:0;z-index:8;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s}
+.popwrap.open{opacity:1;transform:none}
+.poplist{display:flex;flex-direction:column;gap:.15rem;background:rgba(18,18,18,.97);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:.4rem;max-height:min(50vh,22rem);overflow:auto;min-width:14rem;max-width:min(360px,80vw);box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.poplist button{text-align:left;background:none;border:0;border-radius:6px;padding:.45rem .6rem;font-size:.88rem;white-space:normal}
+.poplist button:hover{background:rgba(255,255,255,.12);border:0}
+.poplist button.sel{color:var(--lamp)}
+.poplist button.nudge{color:#9ecbff}
+.obig{margin-top:auto;margin-bottom:auto;display:flex;justify-content:center;align-items:center;gap:1.6rem;pointer-events:none}
+.obig button{width:3.2rem;height:3.2rem;border-radius:50%;font-size:1.5rem;line-height:1;display:grid;place-items:center;pointer-events:auto;background:rgba(20,20,20,.62);backdrop-filter:blur(4px)}
+.obig button:hover{background:rgba(45,45,45,.9)}
+#cPlay{width:4.2rem;height:4.2rem;font-size:1.7rem}
+.obot{padding:.6rem 1rem calc(.8rem + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.82) 55%)}
+.orow{display:flex;align-items:center;gap:.7rem;margin-top:.35rem}
+.orow .sp{flex:1}
+input[type=range]#cSeek{width:100%;padding:0;min-height:0;border:0;background:none;accent-color:var(--lamp);height:1.2rem;cursor:pointer}
+#cTime{font-variant-numeric:tabular-nums;white-space:nowrap;color:#ddd;font-size:.85rem}
+/* Mobil: üç büyük buton oynatıcının tam ortasında (.obig zaten ortalar); sağ-üst grup aynı kalır */
 @media (max-width:700px){
-  .ctl{flex-wrap:wrap}.ctl input[type=range]{order:5;flex:1 1 100%}
-  #stage video{height:56.25vw}
+  .ovl{top:auto;height:auto}
+  .otop{position:fixed;left:0;right:0;top:0}
+  .obig{position:fixed;inset:0;display:grid;place-items:center;margin:0;gap:0}
+  .obig button{position:absolute;top:50%;left:50%;translate:-50% -50%}
+  #cBack{translate:calc(-50% - 4.6rem) -50%}
+  #cFwd{translate:calc(-50% + 4.6rem) -50%}
+  .obot{position:fixed;left:0;right:0;bottom:0}
 }
-@media (max-height:500px) and (orientation:landscape){#stage video{height:calc(100dvh - 150px)}}
+@media (max-height:500px) and (orientation:landscape){
+  .obig button{width:2.6rem;height:2.6rem;font-size:1.25rem}
+  #cPlay{width:3.4rem;height:3.4rem}
+}
 
 /* Oynatıcı her zaman koyu tema (açık temada beyaz üstüne beyaz yazı olmasın) */
 #player{--bg:#000;--panel:#141414;--line:#2e2e2e;--text:#f3f3f3;--mute:#b3b3b3;--lamp:#ffc46b;color:var(--text);color-scheme:dark}
-#fsbox.fs button,#fsbox.fs select{background:rgba(38,35,47,.9);color:#fff;border-color:rgba(255,255,255,.28)}
 
 /* ---- Başlık menüsü: geniş ekranda satır içi, telefonda açılır ---- */
 .menu{display:contents}
@@ -256,24 +275,33 @@ html.tv .railrow::-webkit-scrollbar{display:none}
 
 <div class="sheet" id="detail"><div class="box" id="detailBox"></div></div>
 <div class="sheet" id="player"><div class="box">
-  <div class="ptop">
-    <strong id="ptitle"></strong><span id="pinfo" class="mute"></span><span class="sp"></span>
-    <button id="remux" style="display:none">Uyumluluk modu</button>
-    <button id="iina">IINA'da aç</button><button id="vlc">VLC'de aç</button><button id="dl">Dosyayı indir</button><button id="closeP">Kapat</button>
+  <div id="srcPick">
+    <button id="spBack">← Geri</button>
+    <h2 id="spTitle"></h2>
+    <p class="mute">Kaynak seç →</p>
+    <div class="list" id="spList"></div>
   </div>
   <div id="fsbox">
     <div id="stage"></div>
-    <div class="bars" id="bars">
-      <div class="ctl" id="ctl" style="display:none">
-        <button id="cPlay" aria-label="Oynat/Duraklat">▶</button><button id="cBack" aria-label="10 sn geri">−10</button><button id="cFwd" aria-label="10 sn ileri">+10</button>
-        <input id="cSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Konum">
-        <span id="cTime">0:00 / 0:00</span><button id="cMute">Ses</button><button id="cFs">Tam ekran</button>
+    <div class="ovl" id="ovl">
+      <div class="otop">
+        <button id="closeP" aria-label="Kapat">✕</button>
+        <div class="otitle"><strong id="ptitle"></strong><span id="pinfo" class="mute"></span></div>
+        <span class="sp"></span>
+        <div class="ogroup" id="audBox" style="display:none"><button id="audBtn" aria-label="Ses">🔊</button><select id="audSel" class="pop" aria-label="Ses parçası"></select></div>
+        <div class="ogroup"><button id="subBtn" aria-label="Altyazı">💬</button><select id="subSel" class="pop" aria-label="Altyazı"><option value="">Kapalı</option></select></div>
+        <button id="cFs" aria-label="Tam ekran">⛶</button>
       </div>
-      <div class="sbar">
-        <span id="audBox" style="display:none"><label for="audSel">Ses</label> <select id="audSel"></select></span>
-        <span><label for="subSel">Altyazı</label> <select id="subSel"><option value="">Kapalı</option></select></span>
-        <button id="sdm" title="Altyazıyı 0,5 sn geri al">−0,5 sn</button><button id="sdp" title="Altyazıyı 0,5 sn geciktir">+0,5 sn</button>
-        <span id="subMsg" class="mute"></span>
+      <div class="obig"><button id="cBack" aria-label="10 sn geri">↺</button><button id="cPlay" aria-label="Oynat/Duraklat">▶</button><button id="cFwd" aria-label="10 sn ileri">↻</button></div>
+      <div class="obot">
+        <input id="cSeek" type="range" min="0" max="1000" value="0" step="1" aria-label="Konum">
+        <div class="orow">
+          <span id="cTime">0:00 / 0:00</span>
+          <span class="sp"></span>
+          <button id="remux" class="tvhide" style="display:none">Uyumluluk modu</button>
+          <button id="iina" class="tvhide">IINA'da aç</button><button id="vlc" class="tvhide">VLC'de aç</button><button id="dl" class="tvhide">Dosyayı indir</button>
+          <button id="cMute" aria-label="Sesi aç/kapat">🔈</button>
+        </div>
       </div>
     </div>
   </div>
@@ -874,7 +902,7 @@ const fmt = t => { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t /
 const langName = c => { if (!c) return ''; try { return new Intl.DisplayNames(['tr'], { type: 'language' }).of(c) || c; } catch { return c; } };
 const trackName = t => [langName(t.lang) || 'Bilinmiyor', t.title, t.codec + (t.ch ? ' ' + t.ch + 'k' : '')].filter(Boolean).join(' · ');
 const stopSid = id => navigator.sendBeacon('/api/hls/stop', new Blob([JSON.stringify({ id })], { type: 'application/json' }));
-const subMsg = (m, bad) => { const e = $('#subMsg'); e.textContent = m || ''; e.className = bad ? 'err' : 'mute'; };
+const subMsg = (m, bad) => { if (!m) { $('#subBtn').classList.remove('warn'); return; } $('#subBtn').classList.add('warn'); toast(m, bad ? 8000 : 5000); };
 const absT = () => P ? P.offset + (P.el.currentTime || 0) : 0;
 const L2 = { tur: 'tr', eng: 'en', ger: 'de', deu: 'de', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', rus: 'ru', jpn: 'ja', kor: 'ko', por: 'pt', dut: 'nl', nld: 'nl', swe: 'sv', pol: 'pl', ara: 'ar', chi: 'zh', zho: 'zh', gre: 'el', ell: 'el', heb: 'he', cze: 'cs', ces: 'cs', dan: 'da', fin: 'fi', nor: 'no', hun: 'hu', rum: 'ro', ron: 'ro', ukr: 'uk', vie: 'vi', tha: 'th', ind: 'id', bul: 'bg', hrv: 'hr', srp: 'sr', slo: 'sk', slk: 'sk', slv: 'sl' };
 const norm2 = c => { c = String(c || '').toLowerCase(); return L2[c] || c.slice(0, 2); };
@@ -893,8 +921,10 @@ function stopPlayback() {
     try { P.el.pause(); P.el.removeAttribute('src'); P.el.load(); } catch {}
     P = null;
   }
-  $('#stage').innerHTML = ''; $('#stage').classList.remove('busy'); $('#fsbox').classList.remove('idle'); $('#ctl').style.display = 'none'; $('#remux').style.display = 'none';
+  $('#stage').innerHTML = ''; $('#stage').classList.remove('busy'); $('#fsbox').classList.remove('idle'); $('#remux').style.display = 'none';
   $('#audSel').innerHTML = ''; $('#audBox').style.display = 'none'; $('#subSel').innerHTML = '<option value="">Kapalı</option>'; subMsg('');
+  $$('#player .ogroup .popwrap').forEach(w => w.remove());
+  updPlayBtn();
 }
 
 // --- Hata ayıklama (sunucu PERDE_DEBUG=1 ile başlatıldıysa olaylar terminale yazılır) ---
@@ -1009,8 +1039,32 @@ function autoSub(st) {
   selectSub(st, v, false);
 }
 $('#subSel').onchange = e => { if (!P) return; P.subTouched = true; selectSub(P, e.target.value, true); };
-const nudge = d => { if (!P) return; P.subDelay = Math.round((P.subDelay + d) * 10) / 10; if (P.rec?.sub?.kind) { P.rec.sub.delay = P.subDelay; saveData(); } applySub(P); subMsg(`Altyazı gecikmesi: ${P.subDelay > 0 ? '+' : ''}${P.subDelay} sn`); };
-$('#sdm').onclick = () => nudge(-0.5); $('#sdp').onclick = () => nudge(0.5);
+const nudge = d => { if (!P) return; P.subDelay = Math.round((P.subDelay + d) * 10) / 10; if (P.rec?.sub?.kind) { P.rec.sub.delay = P.subDelay; saveData(); } applySub(P); toast(`Altyazı gecikmesi: ${P.subDelay > 0 ? '+' : ''}${P.subDelay} sn`, 2500); };
+// Altyazı/ses seçimleri sade kalması için ikon arkasında açılır; gecikme ayarı listede "Gecikme" düğmeleriyle yapılır.
+const subBtn = $('#subBtn'), audBtn = $('#audBtn');
+let popOpen = null;
+function openPop(kind) {
+  const sel = kind === 's' ? $('#subSel') : $('#audSel'), btn = kind === 's' ? subBtn : audBtn;
+  if (popOpen === kind) return closePop();
+  closePop();
+  const list = document.createElement('div'); list.className = 'poplist';
+  const cur = sel.value;
+  const mk = (label, val, cls) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; if (val === cur && val !== '') b.classList.add('sel'); b.onclick = () => { if (cls === 'nudge') { nudge(val === 'n-' ? -0.5 : 0.5); } else { sel.value = val; sel.dispatchEvent(new Event('change')); } closePop(); wake(); }; list.appendChild(b); };
+  [...sel.options].forEach(o => { if (o.tagName === 'OPTGROUP') return; mk(o.textContent, o.value); });
+  if (kind === 's') { mk('−0,5 sn gecik', 'n-', 'nudge'); mk('+0,5 sn gecik', 'n+', 'nudge'); }
+  const wrap = document.createElement('div'); wrap.className = 'popwrap'; wrap.appendChild(list);
+  btn.parentElement.appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add('open'));
+  popOpen = kind; btn.classList.add('on');
+}
+function closePop() {
+  const w = $('.ogroup .popwrap'); if (w) w.remove();
+  if (popOpen) (popOpen === 's' ? subBtn : audBtn).classList.remove('on');
+  popOpen = null;
+}
+subBtn.onclick = () => openPop('s');
+audBtn.onclick = () => openPop('a');
+document.addEventListener('click', e => { if (popOpen && !e.target.closest('.ogroup')) closePop(); }, true);
 
 // --- Oturum (MKV vb.) ---
 async function startSession(st, ss, aidx) {
@@ -1071,9 +1125,11 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   const dispTxt = (hdr ? 'HDR/DV · ' : '') + (matchMedia('(dynamic-range: high)').matches ? 'Ekranınız HDR destekliyor' : 'Ekran HDR göstermiyor');
   $('#pinfo').textContent = direct ? dispTxt : 'Hazırlanıyor…';
   sheet('#player', true);
+  enterFs();                                                 // kaynak seçilip oynatıcı açılınca doğrudan tam ekran
+  wake();
 
   const v = document.createElement('video');
-  v.playsInline = true; v.preload = 'auto'; v.autoplay = true; v.controls = direct;
+  v.playsInline = true; v.preload = 'auto'; v.autoplay = true; v.controls = false;   // tarayıcı kontrolleri kapalı: sade, kendi katmanımız var
   $('#stage').appendChild(v);
   v.play().catch(() => {});                                  // tıklama anında başlat: sonradan gelen kaynak 'kullanıcı başlattı' sayılır
   const st = P = { el: v, url, ctx, s, direct, dispTxt, sid: null, hls: null, hb: null, offset: 0, trueDur: 0, aidx: null, audios: [], subs: [], osList: [], subText: '', subKind: '', subIdx: '', subWins: [], subBusy: false, subUrl: null, subDelay: 0, switching: false, drag: false, key, gen: 0, rec, want: 0, wantDone: true, wantTries: 0, sessId: 0, embLoaded: false, osLoaded: false, subTouched: false, autoDone: false };
@@ -1095,9 +1151,10 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   ['loadedmetadata', 'canplay', 'playing'].forEach(ev => v.addEventListener(ev, () => ensureWant(st)));
   v.addEventListener('play', () => { $('#cPlay').textContent = '❚❚'; wake(); });
   v.addEventListener('pause', () => { $('#cPlay').textContent = '▶'; wake(); });
+  v.addEventListener('volumechange', () => { $('#cMute').textContent = (P?.el.muted || P?.el.volume === 0) ? '🔇' : '🔈'; });
   v.addEventListener('ended', () => { if (P !== st) return; const x = rec.eps[key]; if (x) x.t = x.d; saveData(); });
 
-  $('#ctl').style.display = direct ? 'none' : ''; $('#remux').style.display = direct ? '' : 'none';
+  $('#remux').style.display = direct ? '' : 'none';
   loadOsSubs(st);
   if (direct) {
     if (start > 5) { st.want = start; st.wantDone = false; setTimeout(() => { st.wantDone = true; }, 10000); }   // doğrudan modda kaldığınız saniyeye atla
@@ -1116,20 +1173,31 @@ let idleT;
 const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 function wake() {
   const box = $('#fsbox'); box.classList.remove('idle'); clearTimeout(idleT);
-  if (fsOn() && P && !P.el.paused) idleT = setTimeout(() => box.classList.add('idle'), 3000);
+  if (P && !P.el.paused) idleT = setTimeout(() => box.classList.add('idle'), 3500);   // oynatıcıdayken kontroller bir süre sonra kaybolur
 }
 ['mousemove', 'pointerdown', 'touchstart'].forEach(ev => $('#fsbox').addEventListener(ev, wake, { passive: true }));
-['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { $('#fsbox').classList.toggle('fs', fsOn()); wake(); }));
-function toggleFs() {
-  const box = $('#fsbox'), fs = document.fullscreenElement || document.webkitFullscreenElement;
-  if (fs) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { $('#fsbox').classList.toggle('fs', fsOn()); updFsBtn(); wake(); }));
+const updFsBtn = () => { $('#cFs').textContent = fsOn() ? '🗖' : '⛶'; };
+function enterFs() {
+  const box = $('#fsbox');
   const req = box.requestFullscreen || box.webkitRequestFullscreen;
-  if (req) req.call(box); else P?.el.webkitEnterFullscreen?.();
+  if (req) { try { const p = req.call(box); p?.catch?.(() => {}); } catch {} } else P?.el.webkitEnterFullscreen?.();
 }
+function toggleFs() {
+  if (fsOn()) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  enterFs();
+}
+$('#stage').addEventListener('click', e => {          // video alanına tek tık: oynat-duraklat (çift tık: tam ekran)
+  if (e.target.closest('.ovl')) return;
+  if (dblT) { clearTimeout(dblT); dblT = null; toggleFs(); return; }
+  dblT = setTimeout(() => { dblT = null; if (P) (P.el.paused ? P.el.play() : P.el.pause()); }, 260);
+});
+let dblT = null;
+const updPlayBtn = () => { $('#cPlay').textContent = P && !P.el.paused ? '❚❚' : '▶'; };
 $('#cPlay').onclick = () => P && (P.el.paused ? P.el.play() : P.el.pause());
 $('#cBack').onclick = () => P && seekTo(absT() - 10);
 $('#cFwd').onclick = () => P && seekTo(absT() + 10);
-$('#cMute').onclick = () => { if (P) { P.el.muted = !P.el.muted; $('#cMute').textContent = P.el.muted ? 'Sessiz' : 'Ses'; } };
+$('#cMute').onclick = () => { if (P) { P.el.muted = !P.el.muted; $('#cMute').textContent = P.el.muted ? '🔇' : '🔈'; } };
 $('#cFs').onclick = toggleFs;
 $('#cSeek').oninput = e => { if (!P) return; P.drag = true; $('#cTime').textContent = fmt(e.target.value / 1000 * P.trueDur) + ' / ' + fmt(P.trueDur); };
 $('#cSeek').onchange = e => { if (!P) return; P.drag = false; seekTo(e.target.value / 1000 * P.trueDur); };
