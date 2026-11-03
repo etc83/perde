@@ -329,21 +329,19 @@ const RAIL_CHUNK = 18;
 const chunkList = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
 const railSec = (title, ms) => `<section class="rail"><h3>${esc(title)}</h3><div class="railrow">${ms.map(card).join('')}</div></section>`;
 function railsHtml(ms) {
-  // Keşfet: Filmler/Diziler sekmeleri → kategorili satırlar. Kütüphanem: tür bazlı gruplar (Filmler/Diziler).
-  if (view === 'home' && CATALOG.loaded) {
+  // Keşfet: her zaman kategori başlıklı satırlar (Aksiyon, Komedi...). Sıralama yalnızca satır içi öğeleri etkiler.
+  if (view === 'home') {
+    if (!CATALOG.loaded) return grid(ms);   // katalog henüz yüklenmediyse düz liste ile bekle
     let html = '';
-    for (const g of railRows(CATALOG.tab)) {
-      const parts = FILTERS.sort === 'rel' ? chunkList(g.ms, RAIL_CHUNK) : [g.ms];
-      parts.forEach(p => { html += railSec(g.title, p); });
-    }
+    for (const g of railRows(CATALOG.tab)) html += railSec(g.title, g.ms);
     return html;
   }
+  // Kütüphanem: tür bazlı gruplar (Filmler/Diziler)
   let html = '';
   for (const [t, label] of [['movie', 'Filmler'], ['series', 'Diziler']]) {
     const g = ms.filter(m => m.type === t);
     if (!g.length) continue;
-    const parts = FILTERS.sort === 'rel' ? chunkList(g, RAIL_CHUNK) : [g];
-    parts.forEach(p => { html += railSec(label, p); });
+    html += railSec(label, g);
   }
   const other = ms.filter(m => m.type !== 'movie' && m.type !== 'series');
   if (other.length) html += railSec('Diğer', other);
@@ -359,20 +357,10 @@ $('#main').addEventListener('click', e => {
 });
 
 // Katalog sayfaları tek tek toleranslı çekilir: bir sayfa patlasa bile diğerlerinden içerik gelir.
-const catalogPage = async type => {
-  const pages = ['', '/skip=100', '/skip=200'];
-  const res = await Promise.allSettled(pages.map(p => px(`${CINE}/catalog/${type}/top${p}.json`)));
-  return res.filter(x => x.status === 'fulfilled').flatMap(x => Array.isArray(x.value) ? x.value : (x.value?.metas || []));
-};
 async function home() {
   setNav('home'); $('#main').innerHTML = '<p class="mute">Yükleniyor…</p>';
   try {
-    if (!HOME.length) {
-      // Cinemeta "top" kataloğu sayfa sayfa ~100 öğe döner → birkaç sayfa çekip birleştir (yatay satırlarda daha fazla içerik)
-      const [mv, sr] = await Promise.all([catalogPage('movie'), catalogPage('series')]);
-      const seen = new Set();
-      HOME = [...mv, ...sr].filter(Boolean).filter(m => m && m.id && !seen.has(m.id) && (seen.add(m.id), m.type === 'movie' || m.type === 'series'));
-    }
+    await loadCatalog();   // kategori (tür) kataloglarını çek → satır başlıkları kategori adları olur
     if (view !== 'home') return;
     renderView();
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p><button id="retryHome">Tekrar dene</button>`; $('#retryHome').onclick = home; }
@@ -411,11 +399,10 @@ function railRows(t) {
     const ms = sortMs(dedupe(g.ms));
     if (ms.length) groups.push({ title: g.tr, ms });
   }
-  // Sekme içindeki her içerik en az bir kategori satırında görünsün.
+  // Sekme içindeki her içerik en az bir kategori satırında görünsün; başlıklar daima kategori adları.
   const known = new Set(groups.flatMap(x => x.ms.map(m => m.id)));
-  const rest = sortMs(dedupe((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id)));
-  if (rest.length >= 8) groups.unshift({ title: 'Popüler', ms: rest });
-  else for (const m of rest) { const grp = groups.find(x => !x.ms.some(y => y.id === m.id)); if (grp) grp.ms.push(m); }
+  const rest = dedupe((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id));
+  for (const m of rest) { const grp = groups.find(x => !x.ms.some(y => y.id === m.id)); if (grp) grp.ms.push(m); }
   return groups;
 }
 async function search(q) {
