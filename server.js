@@ -272,16 +272,25 @@ function sendFile(req, res, f, type) {
   fs.createReadStream(f).pipe(res);
 }
 
+// Parola göster/gizle ikonları (inline SVG — harici bağımlılık yok)
+const EYE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7.5 11-7.5S23 12 23 12s-4 7.5-11 7.5S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.6 10.6 0 0 1 12 19.5C5 19.5 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.4 9.4 0 0 1 12 4.5c7 0 11 7.5 11 7.5a18.7 18.7 0 0 1-2.16 3.3"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
 const LOGIN = mode => `<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Perde</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#f3f3f3;font:16px system-ui,sans-serif}
 form,main{width:min(340px,90vw)}h1{font:600 1.8rem ui-serif,Georgia,serif;color:#ffc46b;margin:0 0 .4rem}
 p{color:#b3b3b3;margin:.2rem 0 1rem}input,button{width:100%;box-sizing:border-box;font:inherit;padding:.8rem;border-radius:8px;border:1px solid #2e2e2e;background:#141414;color:inherit;margin-bottom:.6rem}
-button{background:#ffc46b;color:#000;border-color:#ffc46b;font-weight:600}#m{color:#ff8a8a;min-height:1.4em;margin:0}</style>
+button{background:#ffc46b;color:#000;border-color:#ffc46b;font-weight:600}#m{color:#ff8a8a;min-height:1.4em;margin:0}
+.pw{position:relative}.pw input{padding-right:3.2rem;margin-bottom:.6rem}.pw svg{display:block}.pw button{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:.35rem .45rem;background:transparent;border:none;color:#b3b3b3;font-weight:400;cursor:pointer;line-height:1;display:flex;align-items:center}.pw button:hover,.pw button:focus-visible{color:#fff;background:transparent;border:none}</style>
 ${mode === 'blocked' ? `<main><h1>Perde</h1><p>İlk kurulum yalnızca sunucunun çalıştığı bilgisayardan yapılır. O bilgisayarda <b>http://localhost:${PORT}</b> adresini açıp yönetici hesabını oluşturun.</p></main>` :
 `<form id=f><h1>Perde</h1><p>${mode === 'setup' ? 'İlk kurulum: yönetici hesabı oluşturun.' : 'Giriş yapın.'}</p>
-<input id=n placeholder="Kullanıcı adı" autocomplete="username" autofocus><input id=p type=password placeholder="Parola" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}">
-${mode === 'setup' ? '<input id=p2 type=password placeholder="Parola (tekrar)" autocomplete="new-password">' : ''}<button>${mode === 'setup' ? 'Hesabı oluştur' : 'Giriş'}</button><p id=m></p></form>
-<script>var MODE='${mode}';f.onsubmit=async function(e){e.preventDefault();
+<input id=n placeholder="Kullanıcı adı" autocomplete="username" autofocus>
+<div class=pw><input id=p type=password placeholder="Parola" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}"><button type=button data-t=p aria-label="Parolayı göster/gizle" title="Parolayı göster/gizle">${EYE}</button></div>
+${mode === 'setup' ? '<div class=pw><input id=p2 type=password placeholder="Parola (tekrar)" autocomplete="new-password"><button type=button data-t=p2 aria-label="Parolayı göster/gizle" title="Parolayı göster/gizle">' + EYE + '</button></div>' : ''}<button>${mode === 'setup' ? 'Hesabı oluştur' : 'Giriş'}</button><p id=m></p></form>
+<script>var MODE='${mode}';
+var EYE='${EYE}',EYE_OFF='${EYE_OFF}';
+document.querySelectorAll('.pw button').forEach(function(b){b.onclick=function(){var i=document.getElementById(b.dataset.t),s=i.type==='password';i.type=s?'text':'password';b.innerHTML=s?EYE_OFF:EYE;i.focus()}});
+f.onsubmit=async function(e){e.preventDefault();
 if(MODE==='setup'&&p.value!==p2.value){m.textContent='Parolalar aynı değil.';return}
 var r=await fetch(MODE==='setup'?'/api/setup':'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:n.value,password:p.value})});
 if(r.ok)location.href='/';else m.textContent=((await r.json().catch(function(){return{}})).error)||'Bir hata oluştu.'}</script>`}</html>`;
