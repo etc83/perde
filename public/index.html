@@ -186,17 +186,18 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 /* ---- Netflix tarzı yatay satırlar (rail) ---- */
 .rail{margin:1.4rem 0 .4rem}
 .rail h3{font-family:ui-serif,"New York",Georgia,serif;font-size:1.15rem;margin:0 0 .5rem;padding-left:.2rem}
-.railrow{display:flex;gap:.6rem;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:.35rem .2rem 1rem;scroll-snap-type:x proximity}
+.railrow{display:flex;gap:.6rem;overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x overscroll-contain;overscroll-behavior-x:contain;scrollbar-width:none;padding:.35rem .2rem 1rem}
 .railrow::-webkit-scrollbar{display:none}
 .rhead{display:flex;align-items:center;gap:.5rem}
 .rhead h3{margin-bottom:.5rem}
+/* Yalnızca kategori başlığının karşısında, yan yana 2 kaydırma düğmesi */
 .rnav{margin-left:auto;display:flex;gap:.35rem}
 .rnav button{width:2.1rem;height:2.1rem;border-radius:99px;border:1px solid var(--line);background:rgba(20,20,20,.85);color:#f3f3f3;font-size:1.05rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .12s ease}
 .rnav button:hover{background:#2a2a2a;border-color:#555}
 .rnav button:active{transform:scale(.92)}
-.railend .rnav button:last-child{position:absolute;left:.4rem;top:calc(50% - 2.6rem);z-index:3;margin-left:0}
 @media (max-width:700px){.rnav button{width:1.7rem;height:1.7rem;font-size:.9rem}}
-.railrow .card{flex:0 0 auto;width:158px;scroll-snap-align:start;transition:transform .18s ease}
+.railrow .card{flex:0 0 auto;width:158px;transition:transform .18s ease}
+.railrow .card img{pointer-events:none;-webkit-user-drag:none;user-select:none}
 .railrow .card:hover,.railrow .card:focus-within{transform:scale(1.06);z-index:2}
 .railrow .pb img,.railrow .ph{aspect-ratio:2/3}
 @media (max-width:700px){.railrow .card{width:112px}.rail h3{font-size:1.05rem}}
@@ -205,9 +206,10 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .fbar{display:flex;align-items:center;gap:.7rem;margin:.2rem 0 1rem;flex-wrap:wrap}
 #fbtn.on{border-color:var(--lamp);color:var(--lamp)}
 .fcount{display:inline-block;min-width:1.2rem;height:1.2rem;line-height:1.2;border-radius:99px;background:var(--lamp);color:#000;font-size:.72rem;font-weight:700;text-align:center;padding:0 .25rem;margin-left:.3rem;vertical-align:1px}
-.fsort{margin-left:auto}
-.fsort label{display:inline;margin:0 0 0 .3rem}
+.fsort{margin-left:auto;display:inline-flex;align-items:center}
+.fsort label{display:inline;margin:0 .5rem 0 0}   /* etiket ile dropdown arasında boşluk */
 .fsort select{width:auto;padding:.35rem .5rem}
+.fsort + .fsort{margin-left:.9rem}                /* iki dropdown grubu arası ayrım */
 .fpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.4rem 1.2rem}
 .fgroup label.fl{margin:.5rem 0 .15rem}
 .fpanel select{width:100%}
@@ -231,7 +233,7 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
     </nav>
     <span id="me" class="mute"></span><button id="logout">Çıkış</button>
   </div>
-  <input id="q" type="search" placeholder="Film veya dizi ara" aria-label="Ara" autocomplete="off" autocorrect="off" spellcheck="false">
+  <input id="q" type="search" placeholder="Film veya dizi ara" aria-label="Ara" autocomplete="off" autoclose="off" autocapitalize="none" autocorrect="off" spellcheck="false">
   <button id="menuBtn" aria-label="Menü" aria-expanded="false" aria-controls="menu">☰</button>
 </header>
 <main id="main"></main>
@@ -337,7 +339,7 @@ const RAIL_CHUNK = 18;
 const chunkList = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
 const railSec = (title, ms) => `<section class="rail">
   <div class="rhead"><h3>${esc(title)}</h3><span class="rnav"><button data-dir="-1" aria-label="${esc(title)} satırında geri kaydır">‹</button><button data-dir="1" aria-label="${esc(title)} satırında ileri kaydır">›</button></span></div>
-  <div class="railend"><div class="railrow">${ms.map(card).join('')}</div><span class="rnav"><button data-dir="-1" aria-label="${esc(title)} satırında geri kaydır">‹</button><button data-dir="1" aria-label="${esc(title)} satırında ileri kaydır">›</button></span></div>
+  <div class="railrow">${ms.map(card).join('')}</div>
 </section>`;
 function railsHtml(ms) {
   // Keşfet: her zaman kategori başlıklı satırlar (Aksiyon, Komedi...). Sıralama yalnızca satır içi öğeleri etkiler.
