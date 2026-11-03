@@ -1163,14 +1163,40 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   try { await startSession(st, start, opt.aidx); }
   catch (e) { if (P === st) { st.switching = false; $('#stage').classList.remove('busy'); subMsg(e.message, true); toast(e.message, 8000); } }
 }
-function closePlayer() { stopPlayback(); sheet('#player', false); saveData(); refreshBars(); }
+// --- Tam ekran çıkış yardımcıları: Safari'de yarım kalan fullscreen geçişi + DOM silinmesi tüm sayfayı kilitleyebiliyordu.
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function exitFsSafe() {                                   // promise reddini (zaten ekrandaysan) yut; senkron hatayı da yakala
+  try {
+    const p = (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    p?.catch?.(() => {});
+  } catch {}
+}
+let fsExitT = null;
+function leaveFs() {                                       // tam ekrandan çıkışı en fazla ~500 ms içinde garanti et
+  if (!fsOn()) return;
+  exitFsSafe();
+  clearTimeout(fsExitT);
+  fsExitT = setTimeout(() => { if (fsOn()) exitFsSafe(); }, 200);   // WebKit ilk çağrıyı bazen yutar: bir kez daha dene
+}
+let playerClosing = false;
+async function closePlayer() {
+  if (playerClosing) return;                               // çift tıklama/ardışık çağrı: ikinci geçişi başlatıp Safari'de kilit yaratmasın
+  playerClosing = true;
+  try {
+    leaveFs();                                             // önce ekrandan çık (video elementine dokunmadan): Safari'de ana iş parçacığını kilitleyen şey, DOM silinirken yarım kalan fullscreen geçişiydi
+    const until = Date.now() + 500;                        // tam ekrandan çıkışı EN FAZLA 500 ms bekle; gecikirse yine de temizle (sonsuz bekleme yok)
+    while (fsOn() && Date.now() < until) await new Promise(r => setTimeout(r, 40));
+    stopPlayback(); sheet('#player', false); saveData(); refreshBars();
+  } finally {
+    setTimeout(() => { playerClosing = false; }, 300);     // çıkış olayları oturana kadar kilitli kal
+  }
+}
 
 // --- Kontroller ---
 let idleT;
-const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 function wake() {
   const box = $('#fsbox'); box.classList.remove('idle'); clearTimeout(idleT);
-  if (P && !P.el.paused) idleT = setTimeout(() => box.classList.add('idle'), 3500);   // oynatıcıdayken kontroller bir süre sonra kaybolur
+  if (P && !P.el.paused) idleT = setTimeout(() => { box.classList.add('idle'); if (!P?.el.paused) wake(); }, 3500);   // kontroller kaybolur; video hâlâ oynuyorsa gizli durum korunur (tek seferlik zamanlayıcı: boş döngü yok)
 }
 ['mousemove', 'pointerdown', 'touchstart'].forEach(ev => $('#fsbox').addEventListener(ev, wake, { passive: true }));
 ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { $('#fsbox').classList.toggle('fs', fsOn()); updFsBtn(); wake(); }));
@@ -1181,7 +1207,14 @@ function enterFs() {
   if (req) { try { const p = req.call(box); p?.catch?.(() => {}); } catch {} } else P?.el.webkitEnterFullscreen?.();
 }
 function toggleFs() {
-  if (fsOn()) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  if (fsOn()) {                                            // çıkışta da reddedilen promise ana iş parçacığını bloklamasın
+    try {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      const p = ex?.call(document);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {}
+    return;
+  }
   enterFs();
 }
 $('#stage').addEventListener('click', e => {          // video alanına tek tık: oynat-duraklat (çift tık: tam ekran)
@@ -1209,7 +1242,7 @@ document.addEventListener('keydown', e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range') return;
   const open = $('#player').classList.contains('open');
   if (e.key === 'Escape') {
-    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) { leaveFs(); return; }   // Safari'de geç kalan çıkışı tamamla
     if (open) return closePlayer();
     if ($('#detail').classList.contains('open')) sheet('#detail', false);
     return;
