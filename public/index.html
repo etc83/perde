@@ -326,7 +326,14 @@ const px = u => j('/api/proxy?url=' + encodeURIComponent(u));
 let tt;
 function toast(m, ms = 3500) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => t.style.display = 'none', ms); }
 const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); if (open && tvMode()) setTimeout(() => { const f = $(id).querySelector('.box button:not([disabled])'); if (f) f.focus({ preventScroll: true }); }, 80); };
+let lastSynced = 0;                                        // en son sunucu eşitleme anı (zaman damgası)
 const saveData = () => { clearTimeout(saveT); saveT = setTimeout(() => post('/api/data', D).catch(() => {}), 600); };
+// Kalıcı ve anında ilerleme yazımı: fetch keepalive, sekmeyi yenileme/kapama anında da sunucuya ulaşır
+// (sendBeacon Safari'de JSON blob'u kabul etmiyor; debounce'lu tam POST ise kapanışta yarıda kalabiliyordu).
+const persistNow = async () => {
+  if (!me) return;
+  try { await fetch('/api/data', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(D), keepalive: true }); } catch {}
+};
 // Cihazlar arası ilerleme çakışması: aynı içerik iki cihazda açılıp sırayla kapatıldığında,
 // eski bir sekmenin gecikmeli kaydı yeni konumu ezmesin → her kayıtten önce sunucudaki taze hali oku.
 const syncProgress = async id => {
@@ -335,6 +342,7 @@ const syncProgress = async id => {
     const fresh = await j('/api/progress?id=' + encodeURIComponent(id));
     const cur = D.progress[id];
     if (fresh && typeof fresh === 'object' && (!cur || (fresh.u || 0) >= (cur.u || 0))) D.progress[id] = fresh;   // sunucudaki daha yeni kayıt kazanır
+    lastSynced = Date.now();
   } catch {}
 };
 
@@ -913,16 +921,21 @@ const langName = c => { if (!c) return ''; try { return new Intl.DisplayNames(['
 const trackName = t => [langName(t.lang) || 'Bilinmiyor', t.title, t.codec + (t.ch ? ' ' + t.ch + 'k' : '')].filter(Boolean).join(' · ');
 const stopSid = id => navigator.sendBeacon('/api/hls/stop', new Blob([JSON.stringify({ id })], { type: 'application/json' }));
 const subMsg = (m, bad) => { if (!m) { $('#subBtn').classList.remove('warn'); return; } $('#subBtn').classList.add('warn'); toast(m, bad ? 8000 : 5000); };
-const absT = () => P ? P.offset + (P.el.currentTime || 0) : 0;
+const absT = st => { const x = st || P; return x ? x.offset + (x.el.currentTime || 0) : 0; };
 const L2 = { tur: 'tr', eng: 'en', ger: 'de', deu: 'de', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', rus: 'ru', jpn: 'ja', kor: 'ko', por: 'pt', dut: 'nl', nld: 'nl', swe: 'sv', pol: 'pl', ara: 'ar', chi: 'zh', zho: 'zh', gre: 'el', ell: 'el', heb: 'he', cze: 'cs', ces: 'cs', dan: 'da', fin: 'fi', nor: 'no', hun: 'hu', rum: 'ro', ron: 'ro', ukr: 'uk', vie: 'vi', tha: 'th', ind: 'id', bul: 'bg', hrv: 'hr', srp: 'sr', slo: 'sk', slk: 'sk', slv: 'sl' };
 const norm2 = c => { c = String(c || '').toLowerCase(); return L2[c] || c.slice(0, 2); };
 const defAudio = a => (a.find(x => /^(tur|tr)$/i.test(x.lang)) || a[0])?.index;
 
+let lastFlush = 0;
 function saveProgress(st) {                                // izleme konumunu (mutlak saniye) kaydeder
   if (st.switching || !st.wantDone) return;
   const abs = st.offset + (st.el.currentTime || 0), d = st.trueDur || (st.sid ? 0 : st.el.duration);
   if (!(d > 0) || !(abs >= 0)) return;
   st.rec.eps[st.key] = { t: abs, d, u: Date.now() };
+  // Kalıcılık: her ~15 sn'de bir ve en az 30 sn önce sunucuyla eşitlendiyse doğrudan yaz.
+  // Böylece F5/yenileme/kapanış anında bile konum kaybolmaz (debounce'lu tam POST yarıda kalırdı).
+  const now = Date.now();
+  if (now - lastFlush > 15000 && (!lastSynced || now - lastSynced < 60000)) { lastFlush = now; persistNow(); }
 }
 function stopPlayback() {
   if (P) saveProgress(P);                                  // kapanmadan önce son konumu yaz (load() sonrası currentTime 0 olur)
@@ -1130,6 +1143,8 @@ function seekTo(t) {
 }
 
 async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
+  if (P && P.ctx?.id === ctx.id) saveProgress(P);             // aynı içeriği yeniden açıyoruz (ör. uyumluluk telafisi): mevcut konumu önce kalıcılaştır
+  const prevP = P;                                            // not: stopPlayback() P'yi null yapar → satır içi okumalar için önce sakla
   stopPlayback();
   curUrl = ''; curState = { url, ctx, s };                    // url = sunucu bileti (gerçek adres tarayıcıya gitmez)
   const key = ctx.ep ? `${ctx.ep.season}:${ctx.ep.episode}` : 'm';
@@ -1137,6 +1152,7 @@ async function openPlayer(url, ctx, s, forceRemux = false, opt = {}) {
   const rec = D.progress[ctx.id] || (D.progress[ctx.id] = { type: ctx.type, eps: {} });
   rec.type = ctx.type; if (ctx.total) rec.total = ctx.total;
   let start = opt.at ?? (rec.eps[key]?.t || 0); if (opt.at == null && fOf(rec.eps[key]) > .92) start = 0;
+  if (opt.at == null && !start && prevP?.ctx?.id === ctx.id) start = absT(prevP);   // aynı içerik yeniden açılıyor (uyumluluk/tekrar deneme): güncel oynatma konumunu koru
   const direct = !forceRemux && !!directOf(url, s);
   $('#ptitle').textContent = ctx.ep ? `${ctx.title} · S${ctx.ep.season}E${ctx.ep.episode}` : ctx.title;
   const hdr = /hdr|dolby|\bdv\b/i.test((s?.name || '') + (s?.title || ''));
@@ -1211,7 +1227,7 @@ async function closePlayer() {
     leaveFs();                                             // önce ekrandan çık (video elementine dokunmadan): Safari'de ana iş parçacığını kilitleyen şey, DOM silinirken yarım kalan fullscreen geçişiydi
     const until = Date.now() + 500;                        // tam ekrandan çıkışı EN FAZLA 500 ms bekle; gecikirse yine de temizle (sonsuz bekleme yok)
     while (fsOn() && Date.now() < until) await new Promise(r => setTimeout(r, 40));
-    stopPlayback(); sheet('#player', false); saveData(); refreshBars();
+    stopPlayback(); sheet('#player', false); persistNow(); refreshBars();   // X ile kapatınca konum anında sunucuya yazılır (debounce beklemeden)
   } finally {
     setTimeout(() => { playerClosing = false; }, 300);     // çıkış olayları oturana kadar kilitli kal
   }
@@ -1386,9 +1402,9 @@ window.addEventListener('keydown', e => {
     if (document.activeElement === $('#q')) { e.preventDefault(); $('#q').blur(); return; }
   }
 }, true);
-const flushData = () => { if (!me) return; try { const b = new Blob([JSON.stringify(D)], { type: 'application/json' }); if (b.size < 60000) navigator.sendBeacon('/api/data', b); } catch {} };
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushData(); });
-window.addEventListener('pagehide', flushData);
+const flushData = () => { if (!me) return; try { persistNow(); } catch {} };   // keepalive fetch: Safari dahil kapanış/yenileme anında ulaşır
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (P) saveProgress(P); flushData(); } });
+window.addEventListener('pagehide', () => { if (P) saveProgress(P); flushData(); });
 $('#logout').onclick = async () => { try { await post('/api/logout', {}); } catch {} location.href = '/login'; };
 
 (async () => {
