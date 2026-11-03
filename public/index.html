@@ -176,6 +176,13 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 @media (max-width:700px){.card button.nm{font-size:.8rem}}
 @media (hover:none){.card.has-last .pb::after{opacity:1;inset:auto auto .4rem .4rem;width:1.9rem;height:1.9rem;border-radius:50%;background:rgba(0,0,0,.65);font-size:.85rem;padding-left:.1rem}}
 
+/* ---- Keşfet: Filmler / Diziler sekmeleri ---- */
+.tabs{display:flex;gap:.4rem;margin:.2rem 0 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tab{background:none;border:0;border-radius:0;color:var(--mute);padding:.5rem .9rem;cursor:pointer;font-size:.95rem}
+.tab:hover:not(:disabled){border-color:transparent;color:var(--text)}
+.tab.on{color:var(--text);font-weight:600;box-shadow:inset 0 -2px var(--lamp)}
+.tab small{color:var(--mute);font-weight:400}
+
 /* ---- Netflix tarzı yatay satırlar (rail) ---- */
 .rail{margin:1.4rem 0 .4rem}
 .rail h3{font-family:ui-serif,"New York",Georgia,serif;font-size:1.15rem;margin:0 0 .5rem;padding-left:.2rem}
@@ -297,7 +304,6 @@ function toggleLib(id) {
 function setNav(v) { view = v; $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 $$('nav button').forEach(b => b.onclick = () => { $('#q').value = ''; ({ home, lib, set: settings, usr: usersView })[b.dataset.v](); });
 
-// Filtreler arama kutusundan bağımsızdır: Keşfet ve Kütüphanem'de de geçerlidir, tercih olarak saklanır.
 let gridHtml = '';
 function pool() { return view === 'home' ? HOME : view === 'lib' ? LIBR : RESULTS; }
 function renderGrid() { gridHtml = listHtml(applyFilters(pool())); }
@@ -318,22 +324,29 @@ function card(m) {
     <button class="nm" title="Detayları aç">${esc(m.name)}</button><small>${esc(sub)}</small></div>`;
 }
 const grid = ms => `<div class="grid">${ms.map(card).join('')}</div>`;
-// Netflix tarzı: içeriği türüne göre gruplayıp yatay kaydırılabilir satırlar halinde gösterir.
+// Netflix tarzı: içeriği kategoriye (türüne) göre gruplayıp yatay kaydırılabilir satırlar halinde gösterir.
 const RAIL_CHUNK = 18;
 const chunkList = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+const railSec = (title, ms) => `<section class="rail"><h3>${esc(title)}</h3><div class="railrow">${ms.map(card).join('')}</div></section>`;
 function railsHtml(ms) {
-  const groups = [['movie', 'Filmler'], ['series', 'Diziler']];
+  // Keşfet: Filmler/Diziler sekmeleri → kategorili satırlar. Kütüphanem: tür bazlı gruplar (Filmler/Diziler).
+  if (view === 'home' && CATALOG.loaded) {
+    let html = '';
+    for (const g of railRows(CATALOG.tab)) {
+      const parts = FILTERS.sort === 'rel' ? chunkList(g.ms, RAIL_CHUNK) : [g.ms];
+      parts.forEach(p => { html += railSec(g.title, p); });
+    }
+    return html;
+  }
   let html = '';
-  for (const [t, label] of groups) {
+  for (const [t, label] of [['movie', 'Filmler'], ['series', 'Diziler']]) {
     const g = ms.filter(m => m.type === t);
     if (!g.length) continue;
     const parts = FILTERS.sort === 'rel' ? chunkList(g, RAIL_CHUNK) : [g];
-    parts.forEach((p, i) => {
-      html += `<section class="rail"><h3>${label}${parts.length > 1 ? ` · ${i * RAIL_CHUNK + 1}–${Math.min((i + 1) * RAIL_CHUNK, g.length)}` : ''} (${g.length})</h3><div class="railrow">${p.map(card).join('')}</div></section>`;
-    });
+    parts.forEach((p, i) => { html += railSec(parts.length > 1 ? `${label} · ${i * RAIL_CHUNK + 1}–${Math.min((i + 1) * RAIL_CHUNK, g.length)}` : label, p); });
   }
   const other = ms.filter(m => m.type !== 'movie' && m.type !== 'series');
-  if (other.length) html += `<section class="rail"><h3>Diğer</h3><div class="railrow">${other.map(card).join('')}</div></section>`;
+  if (other.length) html += railSec('Diğer', other);
   return html;
 }
 const isRailView = () => view === 'home' || view === 'lib';
@@ -368,7 +381,39 @@ async function home() {
       if (FILTERS.minRating > 0) fetchOsMeta(HOME);
     }).catch(() => {});
     if (FILTERS.minRating > 0) fetchOsMeta(HOME);
-  } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p><button id="retryHome">Tekrar dene</button>`; $('#retryHome').onclick = home; }
+}
+
+// ---------- Keşfet kataloğu: tür bazlı (kategori) sayfalar ----------
+const GEN_MAP = [['Action', 'Aksiyon'], ['Adventure', 'Macera'], ['Animation', 'Animasyon'], ['Comedy', 'Komedi'], ['Crime', 'Suç'], ['Documentary', 'Belgesel'], ['Drama', 'Dram'], ['Family', 'Aile'], ['Fantasy', 'Fantastik'], ['History', 'Tarih'], ['Horror', 'Korku'], ['Music', 'Müzik'], ['Mystery', 'Gizem'], ['Romance', 'Romantik'], ['Science Fiction', 'Bilim Kurgu'], ['TV Movie', 'TV Filmi'], ['Thriller', 'Gerilim'], ['War', 'Savaş'], ['Western', 'Vahşi Batı']];
+const CATALOG = { loaded: false, tab: 'movie', genres: {} };   // genres: movie/series -> [{ en, tr, ms }]
+function dedupe(list) { const s = new Set(); return list.filter(m => m && m.id && !s.has(m.id) && (s.add(m.id), true)); }
+async function loadCatalog() {
+  if (CATALOG.loaded) return;
+  const res = await Promise.allSettled(['movie', 'series'].flatMap(t => GEN_MAP.map(([en]) => px(`${CINE}/catalog/${t}/top/genre=${encodeURIComponent(en)}.json`))));
+  let i = 0;
+  for (const t of ['movie', 'series']) {
+    CATALOG.genres[t] = [];
+    for (const [en, tr] of GEN_MAP) {
+      const r = res[i++], ms = r.status === 'fulfilled' ? (r.value?.metas || []).map(m => ({ ...m, type: t })) : [];
+      if (ms.length) CATALOG.genres[t].push({ en, tr, ms });
+    }
+  }
+  HOME = dedupe(['movie', 'series'].flatMap(t => CATALOG.genres[t].flatMap(g => g.ms)));
+  enrichImdb(HOME).then(() => { if (view === 'home') refreshFiltered(); }).catch(() => {});   // puan/yıl eksiklerini arkada tamamla
+  CATALOG.loaded = true;
+}
+function railRows(t) {
+  const f = FILTERS, groups = [];
+  for (const g of CATALOG.genres[t] || []) {
+    const ms = applyFilters(g.ms);
+    if (ms.length) groups.push({ title: g.tr, ms });
+  }
+  const known = new Set(groups.flatMap(x => x.ms.map(m => m.id)));
+  const rest = dedupe(applyFilters((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id)));
+  if (rest.length >= 8) groups.unshift({ title: 'Popüler', ms: rest });
+  else for (const m of rest) for (const grp of groups) if (!grp.ms.some(x => x.id === m.id) && (grp.ms.push(m), true)) break;   // sekme içindeki tüm içerikler görünsün
+  return groups;
 }
 async function search(q) {
   setNav(''); LASTQ = q;
@@ -435,6 +480,8 @@ const OSMETA = {};        // imdb id -> { rating } (Cinemeta'da puan yoksa OpenS
 let osBusy = 0;
 const osKey = m => String(m.imdb || '').replace(/^tt/, '');
 const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
+// Popülerlik: Cinemeta katalog kaydındaki popularities/popularity değeri (İlgililik/Popülerlik sıralaması için)
+const popOf = m => { const p = m.popularities; return (p && typeof p === 'object') ? Math.max(0, ...Object.values(p).map(v => parseFloat(v) || 0)) : parseFloat(m.popularity) || 0; };
 const metaRate = m => numRate(m) || (OSMETA[osKey(m)]?.rating) || 0;
 const knownRate = m => { const r = numRate(m); if (r > 0) return r; const om = OSMETA[osKey(m)]; return om && om.rating > 0 ? om.rating : 0; };
 const yearPool = () => [...new Set(pool().map(metaYear).filter(y => y >= YEAR_MIN && y <= YEAR_MAX))].sort((a, b) => b - a);
@@ -478,7 +525,7 @@ function applyFilters(list) {
     }
     return true;
   });
-  const by = { rel: (a, b) => 0, rating: (a, b) => metaRate(b) - metaRate(a), year: (a, b) => metaYear(b) - metaYear(a), az: (a, b) => a.name.localeCompare(b.name, 'tr') };
+  const by = { rel: (a, b) => popOf(b) - popOf(a), rating: (a, b) => metaRate(b) - metaRate(a), year: (a, b) => metaYear(b) - metaYear(a), az: (a, b) => a.name.localeCompare(b.name, 'tr') };
   if (by[f.sort]) r = [...r].sort(by[f.sort]);
   return r;
 }
@@ -530,6 +577,7 @@ function renderFilterPanel() {
   $('#fclear').onclick = () => { FILTERS = { ...FDEF(), sort: f.sort }; savePrefs(); renderView(); };
 }
 function refreshFiltered() {
+  if (view === 'home') return renderHome();   // Keşfet'te filtre menüsü yok; kategori satırları sıralama tercihine göre yeniden çizilir
   renderGrid();
   updateGridDom();
   const list = applyFilters(pool()), n = activeFiltCount(FILTERS);
@@ -541,6 +589,7 @@ function viewTitle() {
   return view === 'home' ? 'Keşfet' : view === 'lib' ? 'Kütüphanem' : `“${esc(LASTQ)}” sonuçları`;
 }
 function renderView() {
+  if (view === 'home') return renderHome();
   renderGrid();
   const list = applyFilters(pool()), n = activeFiltCount(FILTERS);
   const barHtml = `
@@ -559,6 +608,25 @@ function renderView() {
   $('#fbtn').onclick = () => { fOpen = !fOpen; fOpen ? renderFilterPanel() : $('#fpanel')?.remove(); $('#fbtn').setAttribute('aria-expanded', fOpen); };
   $('#fsel').onchange = e => { FILTERS.sort = e.target.value; savePrefs(); renderView(); };
   if (fOpen) renderFilterPanel();
+}
+// Keşfet görünümü: Filmler/Diziler sekmeleri + kategori başlıklı yatay satırlar; filtre menüsü yok, yalnızca sıralama.
+function homePool() { return HOME.filter(m => m.type === CATALOG.tab); }
+function renderHome() {
+  const t = CATALOG.tab;
+  gridHtml = railsHtml(homePool());   // satırlar sekmenin kategorilerinden üretilir (railRows içinde filtrelenir)
+  const cnt = tt => dedupe((CATALOG.genres[tt] || []).flatMap(g => g.ms)).length;
+  const tabsHtml = `<div class="tabs" role="tablist">
+    ${[['movie', 'Filmler'], ['series', 'Diziler']].map(([v, l]) => `<button class="tab${t === v ? ' on' : ''}" data-t="${v}" role="tab" aria-selected="${t === v}">${l} <small>${cnt(v)}</small></button>`).join('')}
+    <span class="fsort"><label for="fsel">Sırala</label><select id="fsel">
+      <option value="rel"${FILTERS.sort === 'rel' ? ' selected' : ''}>Popülerlik</option>
+      <option value="rating"${FILTERS.sort === 'rating' ? ' selected' : ''}>IMDb puanı</option>
+      <option value="year"${FILTERS.sort === 'year' ? ' selected' : ''}>Yenilik</option>
+      <option value="az"${FILTERS.sort === 'az' ? ' selected' : ''}>A → Z</option>
+    </select></span>
+  </div>`;
+  $('#main').innerHTML = `<h2>Keşfet</h2>${tabsHtml}<div id="fgrid">${gridHtml || '<p class="mute">Bu sekmede içerik yok.</p>'}</div>`;
+  $$('.tab').forEach(b => b.onclick = () => { if (CATALOG.tab !== b.dataset.t) { CATALOG.tab = b.dataset.t; renderHome(); } });
+  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; savePrefs(); renderHome(); };
 }
 
 function lib() {
