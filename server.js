@@ -264,10 +264,10 @@ function sendFile(req, res, f, type) {
 }
 
 const LOGIN = mode => `<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Perde</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1c1a24;color:#efeaf4;font:16px system-ui,sans-serif}
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#f3f3f3;font:16px system-ui,sans-serif}
 form,main{width:min(340px,90vw)}h1{font:600 1.8rem ui-serif,Georgia,serif;color:#ffc46b;margin:0 0 .4rem}
-p{color:#a29bb0;margin:.2rem 0 1rem}input,button{width:100%;box-sizing:border-box;font:inherit;padding:.8rem;border-radius:8px;border:1px solid #3a3646;background:#26232f;color:inherit;margin-bottom:.6rem}
-button{background:#ffc46b;color:#1c1a24;border-color:#ffc46b;font-weight:600}#m{color:#ff8a8a;min-height:1.4em;margin:0}</style>
+p{color:#b3b3b3;margin:.2rem 0 1rem}input,button{width:100%;box-sizing:border-box;font:inherit;padding:.8rem;border-radius:8px;border:1px solid #2e2e2e;background:#141414;color:inherit;margin-bottom:.6rem}
+button{background:#ffc46b;color:#000;border-color:#ffc46b;font-weight:600}#m{color:#ff8a8a;min-height:1.4em;margin:0}</style>
 ${mode === 'blocked' ? `<main><h1>Perde</h1><p>İlk kurulum yalnızca sunucunun çalıştığı bilgisayardan yapılır. O bilgisayarda <b>http://localhost:${PORT}</b> adresini açıp yönetici hesabını oluşturun.</p></main>` :
 `<form id=f><h1>Perde</h1><p>${mode === 'setup' ? 'İlk kurulum: yönetici hesabı oluşturun.' : 'Giriş yapın.'}</p>
 <input id=n placeholder="Kullanıcı adı" autocomplete="username" autofocus><input id=p type=password placeholder="Parola" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}">
