@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Perde</title>
+<script>(function(){var w=innerWidth,h=innerHeight;var tv=(w>=1200&&h/w>=1.6)||(navigator.userAgent||'').indexOf('Android TV')>-1||(navigator.userAgent||'').indexOf('GoogleTV')>-1;if(tv)document.documentElement.classList.add('tv');})();</script>
 <style>
 :root{--bg:#000;--panel:#141414;--line:#2e2e2e;--text:#f3f3f3;--mute:#b3b3b3;--lamp:#ffc46b;--red:#e5050f;--err:#ff8a8a;color-scheme:dark}
 *{box-sizing:border-box}
@@ -219,6 +220,21 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .ffoot{grid-column:1/-1;display:flex;gap:.6rem;align-items:center;margin-top:.4rem}
 .fnote{font-size:.8rem}
 @media (max-width:700px){.fpanel{grid-template-columns:1fr}.fsort{margin-left:0}}
+
+/* ---- Android TV / 10-foot modu ---- */
+html.tv{font-size:18px}
+html.tv body{zoom:1.25}
+html.tv header,html.tv main{padding-left:3.5vw;padding-right:3.5vw}
+html.tv #q{max-width:420px}
+html.tv .card{width:clamp(220px,17vw,290px)}
+html.tv .rhead h3{font-size:1.4rem}
+html.tv .tab,html.tv nav button{padding:.6rem 1.2rem;font-size:1.05rem}
+html.tv .rnav button{width:3rem;height:3rem;font-size:1.5rem}
+html.tv button:focus-visible,html.tv input:focus-visible,html.tv select:focus-visible{outline:4px solid var(--lamp);outline-offset:4px;box-shadow:0 0 24px rgba(255,196,107,.45)}
+html.tv :focus:not(:focus-visible){outline:none}
+html.tv .tvhide{display:none!important}
+html.tv .railrow{scrollbar-width:none}
+html.tv .railrow::-webkit-scrollbar{display:none}
 </style>
 </head>
 <body>
@@ -265,7 +281,7 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 <div id="toast" role="status"></div>
 
 <script>
-const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const $ = s => document.querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const CINE = 'https://v3-cinemeta.strem.io';
@@ -281,7 +297,7 @@ const post = (p, b) => j(p, { method: 'POST', headers: { 'content-type': 'applic
 const px = u => j('/api/proxy?url=' + encodeURIComponent(u));
 let tt;
 function toast(m, ms = 3500) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tt); tt = setTimeout(() => t.style.display = 'none', ms); }
-const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); };
+const sheet = (id, open) => { $(id).classList.toggle('open', open); if (open) $(id).scrollTop = 0; document.body.classList.toggle('lock', !!$('.sheet.open')); if (open && tvMode()) setTimeout(() => { const f = $(id).querySelector('.box button:not([disabled])'); if (f) f.focus({ preventScroll: true }); }, 80); };
 const saveData = () => { clearTimeout(saveT); saveT = setTimeout(() => post('/api/data', D).catch(() => {}), 600); };
 
 // ---------- İzleme ilerlemesi ----------
@@ -327,11 +343,11 @@ function card(m) {
   const om = OSMETA[osKey(m)] || {};
   const rt = metaRate(m) || om.rating || 0;
   const sub = [m.releaseInfo || m.year, rt ? '★ ' + rt : ''].filter(Boolean).join(' · ');
-  return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
-    <button class="pb" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
-    <button class="add${on ? ' on' : ''}" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
+  return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" tabindex="0" role="button" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
+    <button class="pb" tabindex="-1" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
+    <button class="add${on ? ' on' : ''}" tabindex="-1" data-tvid="add" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
     <div class="bar${f > 0 ? ' has' : ''}"><i style="width:${Math.round(f * 100)}%"></i></div>
-    <button class="nm" title="Detayları aç">${esc(m.name)}</button><small>${esc(sub)}</small></div>`;
+    <button class="nm" tabindex="-1" title="Detayları aç">${esc(m.name)}</button><small>${esc(sub)}</small></div>`;
 }
 const grid = ms => `<div class="grid">${ms.map(card).join('')}</div>`;
 // Netflix tarzı: içeriği kategoriye (türüne) göre gruplayıp yatay kaydırılabilir satırlar halinde gösterir.
@@ -362,6 +378,71 @@ function railsHtml(ms) {
 }
 const isRailView = () => view === 'home' || view === 'lib';
 const listHtml = ms => isRailView() ? railsHtml(ms) : grid(ms);
+
+/* ---- Android TV: kumanda (D-pad) ile odak gezinme ---- */
+const TV_NAVSEL = ['button:not(:disabled)', 'input', 'select', 'textarea', 'a[href]', '.card'].join(',');
+const tvMode = () => document.documentElement.classList.contains('tv') || matchMedia('(pointer:coarse)').matches;
+let tvActive = false;                       // kullanıcı gerçekten kumandayla geziniyor mu
+function tvFocusables() { return [...document.querySelectorAll(TV_NAVSEL)].filter(el => el.offsetParent !== null && !el.closest('[hidden]')); }
+function tvCenter(el) { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
+function tvMove(dir) {
+  const cur = document.activeElement && document.activeElement.matches ? document.activeElement : null;
+  const list = tvFocusables(); if (!list.length) return;
+  let best = null, bestScore = Infinity;
+  if (!cur || !list.includes(cur)) { (dir === 'L' || dir === 'U' ? list[0] : list[list.length - 1]).focus(); return true; }
+  const [cx, cy] = tvCenter(cur);
+  for (const el of list) {
+    if (el === cur) continue;
+    const [x, y] = tvCenter(el); const dx = x - cx, dy = y - cy;
+    let along, cross;
+    if (dir === 'L') { along = -dx; cross = Math.abs(dy); }
+    else if (dir === 'R') { along = dx; cross = Math.abs(dy); }
+    else if (dir === 'U') { along = -dy; cross = Math.abs(dx); }
+    else { along = dy; cross = Math.abs(dx); }
+    if (along < 6) continue;                // yalnızca hedef yöndeki öğeler
+    const score = along + cross * 3;        // hafif diyagonal sapma cezalı
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); return true; }
+  return false;                             // bu yönde gidecek yer yok
+}
+window.addEventListener('keydown', e => {
+  const K = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D' }[e.key];
+  if (!K || e.metaKey || e.ctrlKey || e.altKey) return;
+  const ae = document.activeElement;
+  const inField = ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName) && !(ae.type === 'range' || ae.type === 'search' || ae.type === 'checkbox');
+  if (inField) return;                      // yazı alanlarında ok tuşları normal çalışsın
+  if (!tvActive && !tvMode()) return;       // fare/klavye kullanıcılarına dokunma
+  const moved = tvMove(K);
+  if (!moved) {
+    const row = ae && ae.closest('.railrow');
+    if (row && (K === 'L' || K === 'R')) { row.scrollBy({ left: (K === 'R' ? 1 : -1) * Math.max(240, row.clientWidth * .85), behavior: 'smooth' }); e.preventDefault(); return; }
+    return;                                 // hiçbiri: tarayıcı varsayılanına bırak
+  }
+  e.preventDefault();
+}, true);
+window.addEventListener('keyup', e => {
+  if (e.key === 'Enter' && tvActive) {
+    const ae = document.activeElement;
+    if (ae && ae.classList.contains('card')) {
+      e.preventDefault();
+      // TV kısayolu: afişi odaklıyken Enter = hızlı oynat (kaldığın yerden/detaydan),
+      // "Kütüphaneme ekle" düğmesi görünürse + tuşu da aynı görevde.
+      quickPlay(ae.dataset.t, ae.dataset.id, ae);
+    }
+  }
+});
+// TV modunda "+" düğmesine erişim: kart üstüne gelince add görünür olur ve Enter önceliği ona geçer
+window.addEventListener('keydown', e => {
+  if (!tvActive || e.key !== 'Enter') return;
+  const ae = document.activeElement;
+  if (ae && ae.classList?.contains('add')) { e.preventDefault(); ae.click(); }
+}, true);
+// Kumandadan ilk ok tuşu gelirse TV gezinme modunu aç (Chrome'da keyCode 0 imzası)
+window.addEventListener('keydown', e => { if (/^Arrow/.test(e.key) && (e.keyCode === 0 || e.keyCode === undefined)) tvActive = true; }, true);
+// Fareyle tıklayınca gezinme modundan çık (odak halkası fare hover'ıyla karışmasın)
+window.addEventListener('mousedown', () => { tvActive = false; }, true);
+
 $('#main').addEventListener('click', e => {
   const nb = e.target.closest('.rnav button');           // satır başı/sonu kaydırma düğmeleri
   if (nb) {
@@ -1147,6 +1228,29 @@ menuBtn.onclick = e => { e.stopPropagation(); const o = menu.classList.toggle('o
 menu.addEventListener('click', e => { if (e.target.closest('button')) closeMenu(); });
 document.addEventListener('click', e => { if (!e.target.closest('#menu, #menuBtn')) closeMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
+/* ---- Android TV: kumanda kısayol tuşları + renk teması ---- */
+const tvTheme = () => { try { const r = document.documentElement.style; r.setProperty('--lamp', '#45d0ff'); r.setProperty('--red', '#ff3b5c'); } catch {} };
+if (tvMode()) tvTheme();
+window.addEventListener('keydown', e => {
+  if (!tvActive && !tvMode()) return;
+  // Yeşil tuş (Android TV remote): Green / F1 / MediaGreen → Kütüphaneme ekle/çıkar
+  if (e.key === 'Green' || e.key === 'F1' || e.keyCode === 172 || e.code === 'MediaGreen') {
+    const card = document.activeElement?.closest?.('.card') || document.activeElement;
+    const id = card?.dataset?.id;
+    if (id) { e.preventDefault(); toggleLib(id); }
+    return;
+  }
+  // Mavi tuş (Blue / F2 / MediaBlue): TV tema renkleri (amber yerine açık mavi vurgu)
+  if (e.key === 'Blue' || e.key === 'F2' || e.keyCode === 173 || e.code === 'MediaBlue') { e.preventDefault(); tvTheme(); return; }
+  // Geri tuşları (Backspace, Escape, GoBack, KeyboardGoBack, MediaBack): sırasıyla oynatıcı → detay → menü → arama kutusu
+  if (['Backspace', 'Escape', 'GoBack', 'KeyboardGoBack'].includes(e.key) || e.keyCode === 166) {
+    if ($('#player').classList.contains('open')) { e.preventDefault(); closePlayer(); return; }
+    if ($('#detail').classList.contains('open')) { e.preventDefault(); sheet('#detail', false); return; }
+    if (menu.classList.contains('open')) { e.preventDefault(); closeMenu(); return; }
+    if (document.activeElement === $('#q')) { e.preventDefault(); $('#q').blur(); return; }
+  }
+}, true);
 const flushData = () => { if (!me) return; try { const b = new Blob([JSON.stringify(D)], { type: 'application/json' }); if (b.size < 60000) navigator.sendBeacon('/api/data', b); } catch {} };
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushData(); });
 window.addEventListener('pagehide', flushData);
