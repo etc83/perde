@@ -139,11 +139,16 @@ header{padding-top:max(.8rem,env(safe-area-inset-top));padding-left:max(1.5rem,e
 select.pop{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .popwrap{position:absolute;top:calc(100% + .5rem);right:0;z-index:8;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s}
 .popwrap.open{opacity:1;transform:none}
-.poplist{display:flex;flex-direction:column;gap:.15rem;background:rgba(18,18,18,.97);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:.4rem;max-height:min(50vh,22rem);overflow:auto;min-width:14rem;max-width:min(360px,80vw);box-shadow:0 10px 30px rgba(0,0,0,.6)}
-.poplist button{text-align:left;background:none;border:0;border-radius:6px;padding:.45rem .6rem;font-size:.88rem;white-space:normal}
+/* Kompakt altyazı/ses menüsü: sabit genişlik, dikey kaydırma yalnız — yatay taşma yok */
+.poplist{display:flex;flex-direction:column;gap:0;background:rgba(18,18,18,.97);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:.25rem;max-height:min(42vh,18rem);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;width:min(16.5rem,calc(100vw - 2rem));scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;-webkit-overflow-scrolling:touch}
+.poplist::-webkit-scrollbar{width:6px}
+.poplist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:3px}
+.poplist button{display:block;text-align:left;background:none;border:0;border-radius:6px;padding:.32rem .5rem;margin:1px 0;font-size:.82rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-width:0}
 .poplist button:hover{background:rgba(255,255,255,.12);border:0}
 .poplist button.sel{color:var(--lamp)}
 .poplist button.nudge{color:#9ecbff}
+.poplist .sep{height:1px;background:rgba(255,255,255,.14);margin:.3rem .35rem;flex:none}
+.poplist .phd{font-size:.68rem;color:#9a9a9a;text-transform:uppercase;letter-spacing:.05em;padding:.3rem .5rem .1rem;flex:none}
 .obig{margin-top:auto;margin-bottom:auto;display:flex;justify-content:center;align-items:center;gap:1.6rem;pointer-events:none}
 .obig button{width:3.2rem;height:3.2rem;border-radius:50%;font-size:1.5rem;line-height:1;display:grid;place-items:center;pointer-events:auto;background:rgba(20,20,20,.62);backdrop-filter:blur(4px)}
 .obig button:hover{background:rgba(45,45,45,.9)}
@@ -951,7 +956,7 @@ function applySub(st) {
 function renderSubSel(st) {
   const sel = $('#subSel'), cur = sel.value;
   const emb = (st.subs || []).map(t => `<option value="e:${t.index}">${esc(trackName({ ...t, ch: 0 }))}</option>`).join('');
-  const os = (st.osList || []).map(t => `<option value="o:${t.file_id}" data-lang="${esc(t.lang)}">${esc(t.lang.toUpperCase())} · ${esc((t.release || '').slice(0, 50))} (${t.downloads})</option>`).join('');
+  const os = (st.osList || []).map(t => `<option value="o:${t.file_id}" data-lang="${esc(t.lang)}">${esc(t.lang.toUpperCase())} · ${esc((t.release || '').slice(0, 36))}</option>`).join('');
   sel.innerHTML = '<option value="">Kapalı</option>' + (emb ? `<optgroup label="Videoda gömülü">${emb}</optgroup>` : '') + (os ? `<optgroup label="OpenSubtitles">${os}</optgroup>` : '');
   sel.value = cur; if (sel.value !== cur) sel.value = '';
 }
@@ -1042,9 +1047,16 @@ function openPop(kind) {
   closePop();
   const list = document.createElement('div'); list.className = 'poplist';
   const cur = sel.value;
-  const mk = (label, val, cls) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; if (val === cur && val !== '') b.classList.add('sel'); b.onclick = () => { if (cls === 'nudge') { nudge(val === 'n-' ? -0.5 : 0.5); } else { sel.value = val; sel.dispatchEvent(new Event('change')); } closePop(); wake(); }; list.appendChild(b); };
-  [...sel.options].forEach(o => { if (o.tagName === 'OPTGROUP') return; mk(o.textContent, o.value); });
-  if (kind === 's') { mk('−0,5 sn gecik', 'n-', 'nudge'); mk('+0,5 sn gecik', 'n+', 'nudge'); }
+  const mk = (label, val, cls) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = label; if (cls) b.className = cls; if (val === cur && val !== '') b.classList.add('sel'); b.onclick = () => { if (cls === 'nudge') { nudge(val === 'n-' ? -0.5 : 0.5); } else { sel.value = val; sel.dispatchEvent(new Event('change')); } closePop(); wake(); }; list.appendChild(b); };
+  const hd = t => { const d = document.createElement('div'); d.className = 'phd'; d.textContent = t; list.appendChild(d); };
+  const sep = () => { const d = document.createElement('div'); d.className = 'sep'; list.appendChild(d); };
+  // OPTGROUP'lar menüde başlık + ayraç olarak gösterilir; taşmayı önlemek için uzun etiketler kısaltılır
+  const shorten = s => { s = String(s).replace(/\s+/g, ' ').trim(); return s.length > 42 ? s.slice(0, 41).trimEnd() + '…' : s; };
+  [...sel.options].forEach(o => {
+    if (o.tagName === 'OPTGROUP') { hd(shorten(o.label)); o.querySelectorAll('option').forEach(i => mk(shorten(i.textContent), i.value)); return; }
+    mk(shorten(o.textContent), o.value);
+  });
+  if (kind === 's') { sep(); mk('−0,5 sn gecik', 'n-', 'nudge'); mk('+0,5 sn gecik', 'n+', 'nudge'); }
   const wrap = document.createElement('div'); wrap.className = 'popwrap'; wrap.appendChild(list);
   btn.parentElement.appendChild(wrap);
   requestAnimationFrame(() => wrap.classList.add('open'));
