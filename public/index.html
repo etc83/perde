@@ -276,9 +276,9 @@ const inLib = id => D.library.some(x => x.id === id);
 function toggleLib(id) {
   const i = D.library.findIndex(x => x.id === id);
   if (i >= 0) D.library.splice(i, 1);
-  else { const m = META[id]; if (!m) return; D.library.unshift({ id, type: m.type, name: m.name, poster: m.poster, imdbRating: m.imdbRating, releaseInfo: m.releaseInfo || m.year, addedAt: Date.now() }); }
+  else { const m = META[id]; if (!m) return; D.library.unshift({ id, type: m.type, name: m.name, poster: m.poster, imdb: m.imdb, imdbRating: m.imdbRating, year: m.year, releaseInfo: m.releaseInfo || m.year, genres: m.genres, addedAt: Date.now() }); }
   saveData();
-  if (view === 'lib') return lib();
+  if (view === 'lib') { LIBR = D.library.map(x => META[x.id] || x); return renderView(); }
   const on = inLib(id);
   $$(`.card[data-id="${CSS.escape(id)}"] .add`).forEach(b => { b.classList.toggle('on', on); b.textContent = on ? '✓' : '+'; b.title = on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'; });
   const lb = $('#libBtn'); if (lb && lb.dataset.id === id) lb.textContent = on ? '✓ Kütüphanemde' : '+ Kütüphaneme ekle';
@@ -288,11 +288,13 @@ function toggleLib(id) {
 function setNav(v) { view = v; $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 $$('nav button').forEach(b => b.onclick = () => { $('#q').value = ''; ({ home, lib, set: settings, usr: usersView })[b.dataset.v](); });
 
+// Filtreler arama kutusundan bağımsızdır: Keşfet ve Kütüphanem'de de geçerlidir, tercih olarak saklanır.
 let gridHtml = '';
-function renderGrid() { gridHtml = grid(applyFilters(RESULTS)); }
+function pool() { return view === 'home' ? HOME : view === 'lib' ? LIBR : RESULTS; }
+function renderGrid() { gridHtml = grid(applyFilters(pool())); }
 function updateGridDom() {
   const g = $('#fgrid'); if (!g) return;
-  g.innerHTML = gridHtml || '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>';
+  g.innerHTML = gridHtml || '<p class="mute">Filtrelere uyan içerik yok. Filtreleri gevşetmeyi deneyin.</p>';
 }
 function card(m) {
   META[m.id] = m;
@@ -317,13 +319,18 @@ $('#main').addEventListener('click', e => {
 async function home() {
   setNav('home'); $('#main').innerHTML = '<p class="mute">Yükleniyor…</p>';
   try {
-    const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top.json`), px(`${CINE}/catalog/series/top.json`)]);
+    if (!HOME.length) {
+      const [mv, sr] = await Promise.all([px(`${CINE}/catalog/movie/top.json`), px(`${CINE}/catalog/series/top.json`)]);
+      HOME = [...(mv.metas || []), ...(sr.metas || [])];
+      await enrichImdb(HOME);   // imdb id/puan/year eksikse tam meta ile tamamla
+    }
     if (view !== 'home') return;
-    $('#main').innerHTML = `<section><h2>Popüler filmler</h2>${grid(mv.metas || [])}</section><section><h2>Popüler diziler</h2>${grid(sr.metas || [])}</section>`;
+    renderView();
+    if (FILTERS.minRating > 0) fetchOsMeta(HOME);
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 async function search(q) {
-  setNav(''); LASTQ = q; $('#fpanel')?.remove(); fOpen = false;
+  setNav(''); LASTQ = q;
   $('#main').innerHTML = '<p class="mute">Aranıyor…</p>';
   try {
     const e = encodeURIComponent(q);
@@ -333,16 +340,18 @@ async function search(q) {
     // Cinemeta meta listelerinde imdb id/puan/year bulunmaz → tek tek tam meta ile tamamla
     await enrichImdb(RESULTS);
     if (view !== '' || LASTQ !== q) return;
-    renderResults();
-    fetchOsMeta(RESULTS);   // puanı hâlâ bilinmeyenler için OpenSubtitles yedeği
+    renderView();
+    if (FILTERS.minRating > 0) fetchOsMeta(RESULTS);   // puanı hâlâ bilinmeyenler için OpenSubtitles yedeği
   } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 const ENRICH = {};   // v3uid -> { imdb, imdbRating, year }
 const numRate = m => parseFloat(String(m.imdbRating ?? '').replace(',', '.')) || 0;
 async function enrichImdb(list) {
   const needMeta = m => !m.imdb || !(numRate(m) > 0) || !metaYear(m);
-  const todo = list.filter(m => m.id && needMeta(m) && !(m.id in ENRICH));
-  if (!todo.length) { for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]); return; }
+  // Yalnızca sorgulanacak kopyaları tut: nesne ileride değişse de cache'e yanlış kayıt yazılmasın
+  const todo = list.filter(m => m.id && needMeta(m) && !(m.id in ENRICH)).map(m => ({ id: m.id, type: m.type }));
+  for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]);
+  if (!todo.length) return;
   await Promise.all(todo.map(async m => {
     const type = m.type === 'series' ? 'series' : 'movie';
     let rec = null;
@@ -352,9 +361,8 @@ async function enrichImdb(list) {
       rec = { imdb: d.meta?.imdb || '', imdbRating: im && parseFloat(im) > 0 ? im : '', year: d.meta?.year || '' };
     } catch { rec = { imdb: '', imdbRating: '', year: '' }; }
     ENRICH[m.id] = rec;
-    backfill(m, rec);   // yalnızca eksik alanları doldur; katalogdan gelen doğru değerleri ezme
+    for (const x of list) if (x.id === m.id) backfill(x, rec);   // yalnızca eksik alanları doldur; katalogdan gelen doğru değerleri ezme
   }));
-  for (const m of list) if (ENRICH[m.id]) backfill(m, ENRICH[m.id]);
 }
 function backfill(m, r) {
   if (r.imdb && !m.imdb) m.imdb = r.imdb;
@@ -364,17 +372,27 @@ function backfill(m, r) {
 let st;
 $('#q').oninput = e => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 ? search(v) : (!v && home()), 400); };
 
-// ---------- Arama filtreleri ----------
-let RESULTS = [], LASTQ = '', fOpen = false;
+// ---------- İçerik filtreleri (arama kutusundan bağımsız; Keşfet + Arama + Kütüphanem) ----------
+let RESULTS = [], HOME = [], LIBR = [], LASTQ = '', fOpen = false;
 const YEAR_MAX = new Date().getFullYear() + 1, YEAR_MIN = 1900;
+const FKEY = 'perde.filters';
 const FDEF = () => ({ type: 'all', year: 0, genres: [], minRating: 0, sort: 'rel' });   // year: 0 = tüm yıllar
-let FILTERS = FDEF();
+function loadFilters() {
+  try { const s = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (s && typeof s === 'object') return { ...FDEF(), ...s, genres: Array.isArray(s.genres) ? s.genres : [] }; } catch {}
+  return FDEF();
+}
+function savePrefs() {
+  try { localStorage.setItem(FKEY, JSON.stringify(FILTERS)); } catch {}
+  post('/api/prefs', { filters: FILTERS }).catch(() => {});   // cihazlar arası taşınır
+}
+let FILTERS = loadFilters();
 const OSMETA = {};        // imdb id -> { rating } (Cinemeta'da puan yoksa OpenSubtitles'tan sorgulanır)
 let osBusy = 0;
 const osKey = m => String(m.imdb || '').replace(/^tt/, '');
 const metaYear = m => parseInt(m.year || m.releaseInfo || 0, 10) || 0;
 const metaRate = m => numRate(m) || (OSMETA[osKey(m)]?.rating) || 0;
-const yearPool = () => [...new Set(RESULTS.map(metaYear).filter(y => y >= YEAR_MIN && y <= YEAR_MAX))].sort((a, b) => b - a);
+const knownRate = m => { const r = numRate(m); if (r > 0) return r; const om = OSMETA[osKey(m)]; return om && om.rating > 0 ? om.rating : 0; };
+const yearPool = () => [...new Set(pool().map(metaYear).filter(y => y >= YEAR_MIN && y <= YEAR_MAX))].sort((a, b) => b - a);
 async function fetchOsMeta(list) {
   if (!cfg.osQuery) return;
   const todo = [...new Set(list.filter(m => !numRate(m)).map(osKey).filter(id => /^\d+$/.test(id) && !(id in OSMETA)))];
@@ -405,14 +423,13 @@ function applyFilters(list) {
   if (f.minRating > 0) fetchOsMeta(list);   // puanı eksik içerikler için OpenSubtitles sorgusunu tetikle
   let r = list.filter(m => {
     if (f.type !== 'all' && m.type !== f.type) return false;
-    if (f.year) { const y = metaYear(m); if (y && y !== f.year) return false; }
+    if (f.year) { const y = metaYear(m); if (y !== f.year) return false; }
     if (f.genres.length && !f.genres.some(g => (m.genres || []).includes(g))) return false;
     if (f.minRating > 0) {
-      // Önce bilinen puanlara bak (Cinemeta → OpenSubtitles yedeği); hiç bilinmiyorsa beklenirken göster
-      const known = numRate(m) || (OSMETA[osKey(m)]?.rating || 0);
-      if (known >= f.minRating) return true;
-      if (known > 0) return false;                       // puanı kesin olarak eşiğin altında → ele
-      return OSMETA[osKey(m)] === undefined || OSMETA[osKey(m)] === null;  // yanıt gelmedi → şimdilik göster
+      // Puan bilgisi olmayan içerik gösterilmez; bilinen puan (Cinemeta → OpenSubtitles yedeği) eşiği sağlamalı
+      const k = knownRate(m);
+      if (k > 0) return k >= f.minRating;
+      return !(OSMETA[osKey(m)] === undefined || OSMETA[osKey(m)] === null);   // yanıt geldi ama puan yok → eleme; soru işaretli → beklemede gizle
     }
     return true;
   });
@@ -422,7 +439,7 @@ function applyFilters(list) {
 }
 function topGenres() {
   const cnt = {};
-  for (const m of RESULTS) for (const g of (m.genres || [])) cnt[g] = (cnt[g] || 0) + 1;
+  for (const m of pool()) for (const g of (m.genres || [])) cnt[g] = (cnt[g] || 0) + 1;
   return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 12).map(x => x[0]);
 }
 function renderFilterPanel() {
@@ -448,7 +465,7 @@ function renderFilterPanel() {
       </select>
     </div>
     ${tg.length ? `<div class="fgroup">
-      <label class="fl">Tür (kategori)</label>
+      <label class="fl">Kategori</label>
       <div class="fchips" data-k="genres">${tg.map(g => `<button class="fchip${f.genres.includes(g) ? ' on' : ''}" data-v="${esc(g)}">${esc(g)}</button>`).join('')}</div>
     </div>` : ''}
     <div class="ffoot">
@@ -461,28 +478,30 @@ function renderFilterPanel() {
     const k = chip.parentElement.dataset.k, v = chip.dataset.v;
     if (k === 'genres') { f.genres.includes(v) ? f.genres.splice(f.genres.indexOf(v), 1) : f.genres.push(v); chip.classList.toggle('on'); }
     else { f[k] = v; chip.parentElement.querySelectorAll('.fchip').forEach(c => c.classList.toggle('on', c === chip)); }
-    refreshFiltered();
+    savePrefs(); refreshFiltered();
   });
-  $('#fyear').onchange = e => { f.year = +e.target.value || 0; refreshFiltered(); };
-  $('#frt').onchange = e => { f.minRating = +e.target.value || 0; refreshFiltered(); };
-  $('#fclear').onclick = () => { FILTERS = FDEF(); renderResults(); renderFilterPanel(); };
+  $('#fyear').onchange = e => { f.year = +e.target.value || 0; savePrefs(); refreshFiltered(); };
+  $('#frt').onchange = e => { f.minRating = +e.target.value || 0; savePrefs(); refreshFiltered(); };
+  $('#fclear').onclick = () => { FILTERS = { ...FDEF(), sort: f.sort }; savePrefs(); renderView(); };
 }
 function refreshFiltered() {
   renderGrid();
   updateGridDom();
-  const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
-  const rc = $('#fresCount'); if (rc) rc.textContent = RESULTS.length ? `${list.length} / ${RESULTS.length} sonuç` : '';
+  const list = applyFilters(pool()), n = activeFiltCount(FILTERS);
+  const rc = $('#fresCount'); if (rc) rc.textContent = `${list.length} / ${pool().length}`;
   const btn = $('#fbtn'); if (btn) btn.innerHTML = `⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}`;
   const fc = $('#fcount'); if (fc) fc.textContent = (n ? `${n} etkin filtre` : '') + (osBusy ? ' · IMDb puanı bilgisi alınıyor…' : '');
 }
-function renderResults() {
-  if (view !== '') return;
+function viewTitle() {
+  return view === 'home' ? 'Keşfet' : view === 'lib' ? 'Kütüphanem' : `“${esc(LASTQ)}” sonuçları`;
+}
+function renderView() {
   renderGrid();
-  const list = applyFilters(RESULTS), n = activeFiltCount(FILTERS);
+  const list = applyFilters(pool()), n = activeFiltCount(FILTERS);
   const barHtml = `
     <div class="fbar">
-      <button id="fbtn" aria-expanded="${fOpen}" title="Arama sonuçlarına filtre uygula">⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}</button>
-      <span class="mute" id="fresCount">${RESULTS.length ? `${list.length} / ${RESULTS.length} sonuç` : ''}</span>
+      <button id="fbtn" aria-expanded="${fOpen}" title="Listeye filtre uygula">⚙ Filtreler${n ? `<span class="fcount">${n}</span>` : ''}</button>
+      <span class="mute" id="fresCount">${pool().length ? `${list.length} / ${pool().length}` : ''}</span>
       <span class="fsort"><label for="fsel">Sırala</label><select id="fsel">
         <option value="rel"${FILTERS.sort === 'rel' ? ' selected' : ''}>İlgililik</option>
         <option value="rating"${FILTERS.sort === 'rating' ? ' selected' : ''}>IMDb puanı</option>
@@ -490,19 +509,25 @@ function renderResults() {
         <option value="az"${FILTERS.sort === 'az' ? ' selected' : ''}>A → Z</option>
       </select></span>
     </div>`;
-  if (!RESULTS.length) { $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2><p class="mute">“${esc(LASTQ)}” için sonuç yok.</p>`; return; }
-  $('#main').innerHTML = `<h2>“${esc(LASTQ)}” sonuçları</h2>${barHtml}<div id="fgrid">${gridHtml || '<p class="mute">Filtrelere uyan sonuç yok. Filtreleri gevşetmeyi deneyin.</p>'}</div>`;
+  if (!pool().length) { $('#main').innerHTML = `<h2>${viewTitle()}</h2><p class="mute">${view === 'lib' ? 'Kütüphaneniz boş. Keşfet’te bir afişin üzerindeki “+” düğmesiyle içerik ekleyin.' : view === '' ? `“${esc(LASTQ)}” için sonuç yok.` : 'İçerik bulunamadı.'}</p>`; return; }
+  $('#main').innerHTML = `<h2>${viewTitle()}</h2>${barHtml}<div id="fgrid">${gridHtml || '<p class="mute">Filtrelere uyan içerik yok. Filtreleri gevşetmeyi deneyin.</p>'}</div>`;
   $('#fbtn').onclick = () => { fOpen = !fOpen; fOpen ? renderFilterPanel() : $('#fpanel')?.remove(); $('#fbtn').setAttribute('aria-expanded', fOpen); };
-  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; renderResults(); if (fOpen) renderFilterPanel(); };
+  $('#fsel').onchange = e => { FILTERS.sort = e.target.value; savePrefs(); renderView(); };
   if (fOpen) renderFilterPanel();
 }
 
 function lib() {
   setNav('lib');
-  const mv = D.library.filter(x => x.type === 'movie'), sr = D.library.filter(x => x.type === 'series');
-  $('#main').innerHTML = D.library.length
-    ? (mv.length ? `<section><h2>Filmler</h2>${grid(mv)}</section>` : '') + (sr.length ? `<section><h2>Diziler</h2>${grid(sr)}</section>` : '')
-    : '<p class="mute">Kütüphaneniz boş. Keşfet’te bir afişin üzerine gelip “+” düğmesine basarak içerik ekleyin.</p>';
+  LIBR = D.library.map(x => META[x.id] || x);
+  renderView();
+  if (FILTERS.minRating > 0) fetchOsMeta(LIBR);
+  // Eski kayıtlarda imdb/year/genres bulunmayabilir → tam meta ile tamamla, sonra yeniden çiz
+  enrichImdb(LIBR).then(() => {
+    if (view !== 'lib') return;
+    LIBR = D.library.map(x => META[x.id] || x);
+    refreshFiltered();
+    if (FILTERS.minRating > 0) fetchOsMeta(LIBR);
+  });
 }
 
 // ---------- Detay ----------
@@ -998,6 +1023,11 @@ $('#logout').onclick = async () => { try { await post('/api/logout', {}); } catc
   [me, cfg, D] = await Promise.all([j('/api/me'), j('/api/config'), j('/api/data')]);
   D.library = D.library || []; D.progress = D.progress || {};
   $('#me').textContent = me.name; $('#navUsr').style.display = me.role === 'admin' ? '' : 'none';
+  // Kaydedilmiş filtre tercihini yükle (localStorage'dan; yoksa kullanıcı verısından)
+  try {
+    const p = await j('/api/prefs');
+    if (!localStorage.getItem(FKEY) && p && p.filters && typeof p.filters === 'object') FILTERS = { ...FDEF(), ...p.filters, genres: Array.isArray(p.filters.genres) ? p.filters.genres : [] };
+  } catch {}
   (cfg.addonSet || me.role !== 'admin') ? home() : settings();
 })();
 </script>

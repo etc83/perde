@@ -397,9 +397,21 @@ http.createServer(async (req, res) => {
       if (POST) {
         const b = await readBody(req);
         if (!Array.isArray(b.library) || typeof b.progress !== 'object' || !b.progress) return json(res, 400, { error: 'Geçersiz veri' });
-        wr(f, { library: b.library, progress: b.progress });
+        const old = rd(f, { library: [], progress: {} });
+        wr(f, { library: b.library, progress: b.progress, prefs: old.prefs });
       }
       return json(res, 200, rd(f, { library: [], progress: {} }));
+    }
+    if (pn === '/api/prefs') {                          // içerik filtre tercihi (view'dan bağımsız, cihazlar arası taşınır)
+      const f = dataFile(user.id);
+      if (POST) {
+        const b = await readBody(req), flt = b.filters;
+        if (!flt || typeof flt !== 'object') return json(res, 400, { error: 'Geçersiz veri' });
+        const d = rd(f, { library: [], progress: {} });
+        d.prefs = { ...d.prefs, filters: flt };
+        wr(f, d);
+      }
+      return json(res, 200, rd(f, {}).prefs || {});
     }
 
     // ---- Kaynaklar: eklentiye sunucu gider; kullanıcı yalnızca anahtarsız bir bilet (tok) görür ----
