@@ -188,6 +188,14 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .rail h3{font-family:ui-serif,"New York",Georgia,serif;font-size:1.15rem;margin:0 0 .5rem;padding-left:.2rem}
 .railrow{display:flex;gap:.6rem;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:.35rem .2rem 1rem;scroll-snap-type:x proximity}
 .railrow::-webkit-scrollbar{display:none}
+.rhead{display:flex;align-items:center;gap:.5rem}
+.rhead h3{margin-bottom:.5rem}
+.rnav{margin-left:auto;display:flex;gap:.35rem}
+.rnav button{width:2.1rem;height:2.1rem;border-radius:99px;border:1px solid var(--line);background:rgba(20,20,20,.85);color:#f3f3f3;font-size:1.05rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .12s ease}
+.rnav button:hover{background:#2a2a2a;border-color:#555}
+.rnav button:active{transform:scale(.92)}
+.railend .rnav button:last-child{position:absolute;left:.4rem;top:calc(50% - 2.6rem);z-index:3;margin-left:0}
+@media (max-width:700px){.rnav button{width:1.7rem;height:1.7rem;font-size:.9rem}}
 .railrow .card{flex:0 0 auto;width:158px;scroll-snap-align:start;transition:transform .18s ease}
 .railrow .card:hover,.railrow .card:focus-within{transform:scale(1.06);z-index:2}
 .railrow .pb img,.railrow .ph{aspect-ratio:2/3}
@@ -223,7 +231,7 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
     </nav>
     <span id="me" class="mute"></span><button id="logout">Çıkış</button>
   </div>
-  <input id="q" type="search" placeholder="Film veya dizi ara" aria-label="Ara">
+  <input id="q" type="search" placeholder="Film veya dizi ara" aria-label="Ara" autocomplete="off" autocorrect="off" spellcheck="false">
   <button id="menuBtn" aria-label="Menü" aria-expanded="false" aria-controls="menu">☰</button>
 </header>
 <main id="main"></main>
@@ -327,7 +335,10 @@ const grid = ms => `<div class="grid">${ms.map(card).join('')}</div>`;
 // Netflix tarzı: içeriği kategoriye (türüne) göre gruplayıp yatay kaydırılabilir satırlar halinde gösterir.
 const RAIL_CHUNK = 18;
 const chunkList = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
-const railSec = (title, ms) => `<section class="rail"><h3>${esc(title)}</h3><div class="railrow">${ms.map(card).join('')}</div></section>`;
+const railSec = (title, ms) => `<section class="rail">
+  <div class="rhead"><h3>${esc(title)}</h3><span class="rnav"><button data-dir="-1" aria-label="${esc(title)} satırında geri kaydır">‹</button><button data-dir="1" aria-label="${esc(title)} satırında ileri kaydır">›</button></span></div>
+  <div class="railend"><div class="railrow">${ms.map(card).join('')}</div><span class="rnav"><button data-dir="-1" aria-label="${esc(title)} satırında geri kaydır">‹</button><button data-dir="1" aria-label="${esc(title)} satırında ileri kaydır">›</button></span></div>
+</section>`;
 function railsHtml(ms) {
   // Keşfet: her zaman kategori başlıklı satırlar (Aksiyon, Komedi...). Sıralama yalnızca satır içi öğeleri etkiler.
   if (view === 'home') {
@@ -350,6 +361,15 @@ function railsHtml(ms) {
 const isRailView = () => view === 'home' || view === 'lib';
 const listHtml = ms => isRailView() ? railsHtml(ms) : grid(ms);
 $('#main').addEventListener('click', e => {
+  const nb = e.target.closest('.rnav button');           // satır başı/sonu kaydırma düğmeleri
+  if (nb) {
+    const sec = nb.closest('.rail'), row = sec?.querySelector('.railrow');
+    if (row) {
+      const amt = Math.max(240, Math.floor(row.clientWidth * 0.85)) * (+nb.dataset.dir || 1);
+      row.scrollBy({ left: amt, behavior: 'smooth' });
+    }
+    return;
+  }
   const c = e.target.closest('.card'); if (!c) return;
   if (e.target.closest('.add')) return toggleLib(c.dataset.id);
   if (e.target.closest('.nm')) return openDetail(c.dataset.t, c.dataset.id);
@@ -394,14 +414,16 @@ function railRows(t) {
     if (s === 'az') return [...ms].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     return ms;
   };
+  // Keşfet yıl filtresi: seçili yıl dışındaki içerikler satırlardan çıkarılır.
+  const yearOk = m => !FILTERS.year || metaYear(m) === FILTERS.year;
   const groups = [];
   for (const g of CATALOG.genres[t] || []) {
-    const ms = sortMs(dedupe(g.ms));
+    const ms = sortMs(dedupe(g.ms).filter(yearOk));
     if (ms.length) groups.push({ title: g.tr, ms });
   }
   // Sekme içindeki her içerik en az bir kategori satırında görünsün; başlıklar daima kategori adları.
   const known = new Set(groups.flatMap(x => x.ms.map(m => m.id)));
-  const rest = dedupe((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => !known.has(m.id));
+  const rest = dedupe((CATALOG.genres[t] || []).flatMap(g => g.ms)).filter(m => yearOk(m) && !known.has(m.id));
   for (const m of rest) { const grp = groups.find(x => !x.ms.some(y => y.id === m.id)); if (grp) grp.ms.push(m); }
   return groups;
 }
@@ -501,7 +523,7 @@ function activeFiltCount(f) {
   return n;
 }
 function applyFilters(list) {
-  const f = view === 'home' ? { ...FILTERS, type: 'all', year: 0, genres: [], minRating: 0 } : FILTERS;   // Keşfet'te arama filtresi uygulanmaz; yalnızca sıralama geçerli
+  const f = view === 'home' ? { ...FILTERS, type: 'all', genres: [], minRating: 0 } : FILTERS;   // Keşfet'te yalnızca yıl filtresi geçerli (diğer arama filtreleri uygulanmaz)
   if (f.minRating > 0) fetchOsMeta(list);   // puanı eksik içerikler için OpenSubtitles sorgusunu tetikle
   let r = list.filter(m => {
     if (f.type !== 'all' && m.type !== f.type) return false;
@@ -599,13 +621,19 @@ function renderView() {
   $('#fsel').onchange = e => { FILTERS.sort = e.target.value; savePrefs(); renderView(); };
   if (fOpen) renderFilterPanel();
 }
-// Keşfet görünümü: Filmler/Diziler sekmeleri + kategori başlıklı yatay satırlar; filtre menüsü yok, yalnızca sıralama.
+// Keşfet görünümü: Filmler/Diziler sekmeleri + kategori başlıklı yatay satırlar; yalnızca yıl filtresi ve sıralama.
 function homePool() { return HOME.filter(m => m.type === CATALOG.tab); }
+const homeYears = () => [...new Set(homePool().map(metaYear).filter(y => y >= 1900))].sort((a, b) => b - a);
 function renderHome() {
   const t = CATALOG.tab;
-  gridHtml = railsHtml(homePool());   // satırlar sekmenin kategorilerinden üretilir (railRows içinde sıralanır)
+  gridHtml = railsHtml(homePool());   // satırlar sekmenin kategorilerinden üretilir (railRows içinde yıl filtresi + sıralama uygulanır)
+  if (FILTERS.year && !homeYears().includes(FILTERS.year)) FILTERS.year = 0;   // sekmede olmayan yıl seçiliyse sıfırla
   const tabsHtml = `<div class="tabs" role="tablist">
     ${[['movie', 'Filmler'], ['series', 'Diziler']].map(([v, l]) => `<button class="tab${t === v ? ' on' : ''}" data-t="${v}" role="tab" aria-selected="${t === v}">${l}</button>`).join('')}
+    <span class="fsort"><label for="hysel">Yıl</label><select id="hysel">
+      <option value="0"${!FILTERS.year ? ' selected' : ''}>Tüm yıllar</option>
+      ${homeYears().map(y => `<option value="${y}"${FILTERS.year === y ? ' selected' : ''}>${y}</option>`).join('')}
+    </select></span>
     <span class="fsort"><label for="fsel">Sırala</label><select id="fsel">
       <option value="rel"${FILTERS.sort === 'rel' ? ' selected' : ''}>Popülerlik</option>
       <option value="rating"${FILTERS.sort === 'rating' ? ' selected' : ''}>IMDb puanı</option>
@@ -615,6 +643,7 @@ function renderHome() {
   </div>`;
   $('#main').innerHTML = `<h2>Keşfet</h2>${tabsHtml}<div id="fgrid">${gridHtml || '<p class="mute">Bu sekmede içerik yok.</p>'}</div>`;
   $$('.tab').forEach(b => b.onclick = () => { if (CATALOG.tab !== b.dataset.t) { CATALOG.tab = b.dataset.t; renderHome(); } });
+  $('#hysel').onchange = e => { FILTERS.year = +e.target.value || 0; savePrefs(); renderHome(); };
   $('#fsel').onchange = e => { FILTERS.sort = e.target.value; savePrefs(); renderHome(); };
 }
 
