@@ -435,6 +435,26 @@ http.createServer(async (req, res) => {
       if (url.searchParams.get('json')) return json(res, 200, { url: fin });
       res.writeHead(302, { Location: fin, 'Cache-Control': 'no-store' }); return res.end();
     }
+    if (pn === '/api/download') {                    // bilet -> dosya içeriği bu cihazın diskiné iner (sunucu köprüsü)
+      const fin = await finalUrl(tokUrl(url.searchParams.get('t'), user.id));
+      let r;
+      try { r = await fetch(fin, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(600000) }); }
+      catch { return json(res, 502, { error: 'Kaynağa ulaşılamadı' }); }
+      if (!r.ok || !r.body) { r.body?.cancel().catch(() => {}); return json(res, 502, { error: 'İndirme hatası: ' + r.status }); }
+      let fname = (url.searchParams.get('name') || '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 120) || 'video.mp4';
+      if (!/\.[a-z0-9]{2,4}$/i.test(fname)) fname += '.mp4';
+      const hdrs = {
+        'Content-Type': r.headers.get('content-type') || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`,
+        'Cache-Control': 'no-store',
+      };
+      const cl = r.headers.get('content-length'); if (cl) hdrs['Content-Length'] = cl;   // boş başlık gönderilirse HTTP parse bozulur
+      res.writeHead(200, hdrs);
+      // İstemci sekmesini kapatırsa (abort) kaynaktan okumayı durdur
+      req.on('close', () => { r.body.cancel().catch(() => {}); });
+      const { Readable } = require('node:stream');
+      return Readable.fromWeb(r.body).pipe(res);
+    }
     if (pn === '/api/proxy') {                       // yalnızca Cinemeta (metadata) için CORS köprüsü
       let t = url.searchParams.get('url'), h = '';
       try { h = new URL(t).hostname; } catch {}

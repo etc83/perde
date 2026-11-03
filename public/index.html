@@ -259,7 +259,7 @@ html.tv .railrow::-webkit-scrollbar{display:none}
   <div class="ptop">
     <strong id="ptitle"></strong><span id="pinfo" class="mute"></span><span class="sp"></span>
     <button id="remux" style="display:none">Uyumluluk modu</button>
-    <button id="iina">IINA'da aç</button><button id="vlc">VLC'de aç</button><button id="copy">Bağlantıyı kopyala</button><button id="closeP">Kapat</button>
+    <button id="iina">IINA'da aç</button><button id="vlc">VLC'de aç</button><button id="dl">Dosyayı indir</button><button id="closeP">Kapat</button>
   </div>
   <div id="fsbox">
     <div id="stage"></div>
@@ -1163,7 +1163,19 @@ $('#iina').onclick = () => curUrl ? location.href = 'iina://weblink?url=' + enco
 const isMac = /Mac/.test(navigator.platform) && !(navigator.maxTouchPoints > 1);
 if (!isMac) $('#iina').style.display = 'none';
 $('#vlc').onclick = () => curUrl ? location.href = 'vlc://' + curUrl : toast('Bağlantı hazırlanıyor, birkaç saniye sonra deneyin.');
-$('#copy').onclick = () => curUrl ? navigator.clipboard.writeText(curUrl).then(() => toast('Bağlantı kopyalandı')) : toast('Bağlantı hazırlanıyor, birkaç saniye sonra deneyin.');
+$('#dl').onclick = () => {
+  const st = P; if (!st) return toast('Önce bir içerik oynatın.');
+  // Sunucu köprüsü (/api/download): dosya içeriği sunucudan bu cihaza akar → indirme tarayıcının
+  // "İndirilenler"ine düşer. Doğrudan linkte CDN genelde Content-Disposition dönmediğinden
+  // "kopyala" gibi davranıp sekme açabiliyordu; bu yöntem her cihazda (TV dahil) gerçek indirmeyi garanti eder.
+  const fname = (st.ctx.title || 'video') + (st.ctx.ep ? ` S${st.ctx.ep.season}E${st.ctx.ep.episode}` : '') + '.mp4';
+  const a = document.createElement('a');
+  a.href = '/api/download?t=' + encodeURIComponent(st.url) + '&name=' + encodeURIComponent(fname);
+  a.download = fname;
+  a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('İndirme başladı — oynatılan cihazın indirilenler klasörüne kaydediliyor.');
+};
 
 // ---------- Hesap, ayarlar, kullanıcılar ----------
 let me = null;
