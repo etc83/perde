@@ -439,8 +439,17 @@ http.createServer(async (req, res) => {
       let t = url.searchParams.get('url'), h = '';
       try { h = new URL(t).hostname; } catch {}
       if (h !== 'v3-cinemeta.strem.io') return json(res, 403, { error: 'İzin verilmeyen adres' });
-      const r = await fetch(t, { headers: { Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(25000) });
-      res.writeHead(r.status, { 'content-type': 'application/json' });
+      // v3-cinemeta.strem.io artık katalog isteklerini cinemeta-catalogs.strem.io'ya 307 ile yönlendiriyor.
+      // fetch'in otomatik yönlendirmesi bazen takılıyor/engelleniyor → Location'u elle izliyoruz (en fazla 3 hop).
+      let r;
+      for (let hop = 0; hop < 4; hop++) {
+        r = await fetch(t, { headers: { Accept: 'application/json', 'User-Agent': UA }, redirect: 'manual', signal: AbortSignal.timeout(25000) });
+        const loc = r.headers.get('location');
+        if (r.status >= 301 && r.status <= 308 && loc) { t = new URL(loc, t).href; continue; }
+        break;
+      }
+      if (r.status >= 301 && r.status <= 308) return json(res, 502, { error: 'Cinemeta yönlendirme döngüsü' });
+      res.writeHead(r.status, { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       return res.end(await r.text());
     }
     if (pn === '/api/hls/start' && POST) {
