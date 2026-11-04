@@ -40,13 +40,15 @@ section h2{margin:1.8rem 0 .8rem}
 .pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden}
 .pb img,.ph{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.55)}
 .add{position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;border-color:rgba(255,255,255,.35);font-size:1.15rem;line-height:1;opacity:0;transition:opacity .15s}
-.card:hover .add,.add:focus-visible,.add.on{opacity:1}
+.card:hover .add,.add.on{opacity:1}
 .add.on{background:var(--lamp);color:#000;border-color:var(--lamp)}
 @media (hover:none){.add{opacity:1}}
+.card:focus-visible{outline:4px solid var(--lamp);outline-offset:3px;border-radius:8px}
+.card.has-last:focus-visible .pb::after{opacity:1}
 .bar{height:4px;border-radius:2px;margin-top:.45rem}
 .bar.has{background:var(--line)}
 .bar i{display:block;height:100%;background:var(--red);border-radius:2px}
-.nm{display:block;font-size:.88rem;margin-top:.3rem;line-height:1.3}
+.nm{display:block;width:100%;text-align:left;font-size:.88rem;margin-top:.3rem;line-height:1.3}
 .card small{color:var(--mute)}
 
 /* Paneller */
@@ -210,9 +212,8 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .card.has-last .pb::after{content:'▶';position:absolute;inset:0;display:grid;place-items:center;font-size:2.4rem;color:#fff;background:rgba(0,0,0,.38);opacity:0;transition:opacity .15s}
 .card.has-last:hover .pb::after,.card.has-last .pb:focus-visible::after{opacity:1}
 .card.busy{opacity:.55;pointer-events:none}
-.card button.nm{display:block;width:100%;min-height:0;text-align:left;background:none;border:0;border-radius:0;padding:0;margin-top:.3rem;font:inherit;font-size:.88rem;line-height:1.3;color:inherit;cursor:pointer}
-.card button.nm:hover{text-decoration:underline;color:var(--lamp)}
-@media (max-width:700px){.card button.nm{font-size:.8rem}}
+.card .nm:hover{text-decoration:underline;color:var(--lamp)}
+@media (max-width:700px){.card .nm{font-size:.8rem}}
 @media (hover:none){.card.has-last .pb::after{opacity:1;inset:auto auto .4rem .4rem;width:1.9rem;height:1.9rem;border-radius:50%;background:rgba(0,0,0,.65);font-size:.85rem;padding-left:.1rem}}
 
 /* ---- Keşfet: Filmler / Diziler sekmeleri ---- */
@@ -240,6 +241,13 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .railrow .card:hover,.railrow .card:focus-within{transform:scale(1.06);z-index:2}
 .railrow .pb img,.railrow .ph{aspect-ratio:2/3}
 @media (max-width:700px){.railrow .card{width:112px}.rail h3{font-size:1.05rem}}
+/* Afişte basılı tutma menüsü (TV + mobil) */
+.cardmenu{position:fixed;z-index:60;background:#181818;border:1px solid #3a3a3a;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.7);padding:.5rem;display:flex;flex-direction:column;gap:.35rem}
+.cardmenu b{display:block;font-size:.85rem;padding:.25rem .4rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cardmenu button{display:block;width:100%;text-align:left;padding:.55rem .6rem;border:0;border-radius:8px;background:#262626;color:#f3f3f3;font:inherit;font-size:.9rem;cursor:pointer}
+.cardmenu button:hover,.cardmenu button:focus-visible{background:#333;outline:2px solid var(--lamp);outline-offset:-2px}
+.cardmenu button.danger{color:#ff6b6b}
+.cardmenu button.danger:hover,.cardmenu button.danger:focus-visible{background:#3a1d1d}
 
 /* ---- Arama filtre menüsü ---- */
 .fbar{display:flex;align-items:center;gap:.7rem;margin:.2rem 0 1rem;flex-wrap:wrap}
@@ -444,10 +452,10 @@ function card(m) {
   const rt = metaRate(m) || om.rating || 0;
   const sub = [m.releaseInfo || m.year, rt ? '★ ' + rt : ''].filter(Boolean).join(' · ');
   return `<div class="card${cfg.addonSet && D.progress[m.id]?.last ? ' has-last' : ''}" tabindex="0" role="button" data-id="${esc(m.id)}" data-t="${esc(m.type)}"><div class="pw">
-    <button class="pb" tabindex="-1" aria-label="${esc(m.name)}${cfg.addonSet && D.progress[m.id]?.last ? ' — kaldığınız yerden oynat' : ' — detayları aç'}" title="${cfg.addonSet && D.progress[m.id]?.last ? 'Kaldığınız yerden oynat' : 'Detayları aç'}">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</button>
-    <button class="add${on ? ' on' : ''}" tabindex="-1" data-tvid="add" aria-label="Kütüphane" title="${on ? 'Kütüphaneden çıkar' : 'Kütüphaneme ekle'}">${on ? '✓' : '+'}</button></div>
+    <span class="pb">${m.poster ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(m.poster)}" alt="">` : '<div class="ph"></div>'}</span>
+    <span class="add${on ? ' on' : ''}" aria-hidden="true">${on ? '✓' : '+'}</span></div>
     <div class="bar${f > 0 ? ' has' : ''}"><i style="width:${Math.round(f * 100)}%"></i></div>
-    <button class="nm" tabindex="-1" title="Detayları aç">${esc(m.name)}</button><small>${esc(sub)}</small></div>`;
+    <span class="nm">${esc(m.name)}</span><small>${esc(sub)}</small></div>`;
 }
 const grid = ms => `<div class="grid">${ms.map(card).join('')}</div>`;
 // Netflix tarzı: içeriği kategoriye (türüne) göre gruplayıp yatay kaydırılabilir satırlar halinde gösterir.
@@ -486,6 +494,7 @@ let tvActive = false;                       // kullanıcı gerçekten kumandayla
 // Odak kapsama alanı (scope): açık bir sheet varsa yalnızca onun içi, yoksa ana liste.
 // Böylece kaynak/sezon-bölüm listesi açılınca kumanda arka plandaki afişlere kaçmaz.
 function tvScope() {
+  const cm = $('#cardMenu'); if (cm) return cm;   // basılı tutma menüsü açıksa odak yalnızca onda kalsın
   const sh = [...document.querySelectorAll('.sheet.open')].pop();
   if (sh) return sh.querySelector('.box') || sh;
   return $('#main') || document.body;
@@ -570,10 +579,69 @@ $('#main').addEventListener('click', e => {
     return;
   }
   const c = e.target.closest('.card'); if (!c) return;
+  // TV/mobil: afiş, isim ve kütüphane düğmesi tek hedef — kısa dokunuş kaldığın yerden oynatır,
+  // basılı tutma seçenek menüsünü açar. Masaüstünde eski davranış korunur.
+  if (matchMedia('(hover:none)').matches || tvMode()) {
+    if (Date.now() - cardPressAt < 650) return;   // basılı tutma menüsü yeni açıldı: tıklamayı yut
+    return quickPlay(c.dataset.t, c.dataset.id, c);
+  }
   if (e.target.closest('.add')) return toggleLib(c.dataset.id);
   if (e.target.closest('.nm')) return openDetail(c.dataset.t, c.dataset.id);
   if (e.target.closest('.pb')) quickPlay(c.dataset.t, c.dataset.id, c);
 });
+
+// ---------- Afişte basılı tutma menüsü (TV + mobil) ----------
+let cardPressT = null, cardPressAt = 0, pressCard = null;
+const clearPressTimer = () => { clearTimeout(cardPressT); cardPressT = null; };
+$('#main').addEventListener('pointerdown', e => {
+  if (!(matchMedia('(hover:none)').matches || tvMode())) return;
+  if (e.pointerType === 'mouse' && !tvMode()) return;      // masaüstü fare: eski ayrı-hedef davranışı
+  const c = e.target.closest('.card'); if (!c) return;
+  if (e.target.closest('.rnav button')) return;            // satır kaydırma düğmeleri menüyü tetiklemesin
+  pressCard = c;
+  clearPressTimer();
+  cardPressT = setTimeout(() => { cardPressT = null; cardPressAt = Date.now(); openCardMenu(pressCard); }, 500);
+}, true);
+['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(ev =>
+  window.addEventListener(ev, clearPressTimer, { passive: true, capture: ev === 'scroll' }));
+document.addEventListener('contextmenu', e => {          // uzun basma tarayıcı menüsü yerine kendi menümüz
+  if ((matchMedia('(hover:none)').matches || tvMode()) && e.target.closest?.('.card')) e.preventDefault();
+});
+function closeCardMenu() { $('#cardMenu')?.remove(); }
+function openCardMenu(c) {
+  closeCardMenu();
+  const id = c.dataset.id, m = META[id] || {}, type = c.dataset.t || m.type || 'movie';
+  const on = inLib(id), hasProg = !!(D.progress[id]?.eps && Object.keys(D.progress[id].eps).length);
+  const box = document.createElement('div');
+  box.className = 'cardmenu'; box.id = 'cardMenu'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+  box.innerHTML = `<b>${esc(m.name || c.querySelector('.nm')?.textContent || '')}</b>
+    <button data-a="lib">${on ? '✓ Kütüphaneden çıkar' : '+ Kütüphaneme ekle'}</button>
+    <button data-a="detail">Ayrıntılar · kaynaklar</button>
+    ${hasProg ? '<button data-a="reset" class="danger">İlerlemeyi sıfırla</button>' : ''}`;
+  document.body.appendChild(box);
+  const vw = innerWidth, vh = innerHeight, bw = Math.min(260, vw - 16);
+  let x = Math.max(8, Math.min(vw - bw - 8, (eX ?? 0) - bw / 2)), y = Math.max(8, vh - 190);
+  try { const r = c.getBoundingClientRect(); x = Math.max(8, Math.min(vw - bw - 8, r.left + r.width / 2 - bw / 2)); y = Math.min(r.bottom + 6, vh - 170); if (y < 8) y = 8; } catch {}
+  box.style.cssText += `left:${x}px;top:${y}px;width:${bw}px`;
+  const dismiss = () => { closeCardMenu(); window.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', keyout, true); };
+  const outside = ev => { if (!ev.target.closest('#cardMenu')) dismiss(); };
+  const keyout = ev => { if (ev.key === 'Escape' || ev.key === 'Backspace' || ev.key === 'GoBack') dismiss(); };
+  setTimeout(() => window.addEventListener('pointerdown', outside, true), 0);
+  document.addEventListener('keydown', keyout, true);
+  box.querySelectorAll('button').forEach(b => b.onclick = async () => {
+    const a = b.dataset.a; dismiss();
+    if (a === 'lib') toggleLib(id);
+    else if (a === 'detail') openDetail(type, id);
+    else if (a === 'reset') {
+      delete D.progress[id];
+      try { await persistNow(); } catch {}
+      saveData(); refreshBars(); toast('İlerleme sıfırlandı.', 2500);
+    }
+  });
+  if (tvMode()) setTimeout(() => box.querySelector('button')?.focus({ preventScroll: true }), 60);
+}
+let eX = 0;
+window.addEventListener('pointermove', e => { eX = e.clientX; }, { passive: true });
 
 // Katalog sayfaları tek tek toleranslı çekilir: bir sayfa patlasa bile diğerlerinden içerik gelir.
 async function home() {
