@@ -16,7 +16,6 @@ button:hover:not(:disabled){border-color:var(--lamp)}
 button:disabled{opacity:.6;cursor:default}
 button.primary{background:var(--lamp);color:#000;border-color:var(--lamp);font-weight:600}
 :focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
-input,select,textarea{user-select:text;-webkit-user-select:text} /* mobilde uzun basma metin seçimini engelleme */
 input,select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;width:100%}
 /* Parola göster/gizle alanı */
 .pwf{position:relative;display:block}
@@ -38,10 +37,9 @@ section h2{margin:1.8rem 0 .8rem}
 /* Afiş kartları */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1.2rem 1.1rem}
 .card .pw{position:relative}
-body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none} /* afişe basılı tutunca seçim/copy balonu çıkmasın */
-.pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden;-webkit-user-drag:none}
+.pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden}
 .pb img,.ph{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.55)}
-.add{position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;border-color:rgba(255,255,255,.35);font-size:1.15rem;line-height:1;opacity:0;transition:opacity .15s}
+.add{display:none !important;position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;border-color:rgba(255,255,255,.35);font-size:1.15rem;line-height:1;opacity:0;transition:opacity .15s}
 .card:hover .add,.add.on{opacity:1}
 .add.on{background:var(--lamp);color:#000;border-color:var(--lamp)}
 @media (hover:none){.add{opacity:1}}
@@ -600,28 +598,20 @@ $('#main').addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && !tvMode()) return;      // masaüstü fare: eski ayrı-hedef davranışı
   const c = e.target.closest('.card'); if (!c) return;
   if (e.target.closest('.rnav button')) return;            // satır kaydırma düğmeleri menüyü tetiklemesin
+  eX = e.clientX; eY = e.clientY;
   pressCard = c;
   clearPressTimer();
   cardPressT = setTimeout(() => { cardPressT = null; cardPressAt = Date.now(); openCardMenu(pressCard); }, 500);
 }, true);
 ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(ev =>
   window.addEventListener(ev, clearPressTimer, { passive: true, capture: ev === 'scroll' }));
-document.addEventListener('contextmenu', e => {          // uzun basma tarayıcı menüsü yerine kendi menümüz
-  if ((matchMedia('(hover:none)').matches || tvMode()) && e.target.closest?.('.card')) e.preventDefault();
-});
-// Masaüstü: sağ tık da aynı menüyü açsın (tarayıcı bağlam menüsü engellenir)
-$('#main').addEventListener('contextmenu', e => {
-  const c = e.target.closest('.card'); if (!c) return;
-  e.preventDefault();
-  if (matchMedia('(hover:none)').matches || tvMode()) return; // touch'ta zaten basılı tutma var
-  eX = e.clientX; openCardMenu(c); cardPressAt = Date.now();
-});
-// Metin seçimi / sürükleme girişimini engelle: afişe basılı tutunca Android'de seçim balonu çıkmasın
-document.addEventListener('selectstart', e => {
-  if (!(e.target.matches?.('input,textarea,select') || e.target.isContentEditable)) e.preventDefault();
-});
-document.addEventListener('dragstart', e => {
-  if (e.target.tagName === 'IMG') e.preventDefault();
+document.addEventListener('contextmenu', e => {
+  if (view === 'home' || e.target.closest('.card')) e.preventDefault();
+  const c = e.target.closest('.card');
+  if (c && !tvMode()) {
+    eX = e.clientX; eY = e.clientY;
+    openCardMenu(c);
+  }
 });
 function closeCardMenu() { $('#cardMenu')?.remove(); }
 function openCardMenu(c) {
@@ -634,11 +624,15 @@ function openCardMenu(c) {
     <button data-a="lib">${on ? '✓ Kütüphaneden çıkar' : '+ Kütüphaneme ekle'}</button>
     <button data-a="detail">Ayrıntılar · kaynaklar</button>
     ${hasProg ? '<button data-a="reset" class="danger">İlerlemeyi sıfırla</button>' : ''}`;
-  document.body.appendChild(box);
   const vw = innerWidth, vh = innerHeight, bw = Math.min(260, vw - 16);
-  let x = Math.max(8, Math.min(vw - bw - 8, (eX ?? 0) - bw / 2)), y = Math.max(8, vh - 190);
-  try { const r = c.getBoundingClientRect(); x = Math.max(8, Math.min(vw - bw - 8, r.left + r.width / 2 - bw / 2)); y = Math.min(r.bottom + 6, vh - 170); if (y < 8) y = 8; } catch {}
-  box.style.cssText += `left:${x}px;top:${y}px;width:${bw}px`;
+  let x = Math.max(8, eX ?? (vw / 2));
+  let y = Math.max(8, eY ?? (vh / 2));
+  box.style.opacity = '0';
+  document.body.appendChild(box);
+  const bh = box.offsetHeight;
+  if (x + bw > vw) x = Math.max(8, vw - bw - 10);
+  if (y + bh > vh) y = Math.max(8, vh - bh - 10);
+  box.style.cssText += `left:${x}px;top:${y}px;width:${bw}px;opacity:1`;
   const dismiss = () => { closeCardMenu(); window.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', keyout, true); };
   const outside = ev => { if (!ev.target.closest('#cardMenu')) dismiss(); };
   const keyout = ev => { if (ev.key === 'Escape' || ev.key === 'Backspace' || ev.key === 'GoBack') dismiss(); };
@@ -656,8 +650,8 @@ function openCardMenu(c) {
   });
   if (tvMode()) setTimeout(() => box.querySelector('button')?.focus({ preventScroll: true }), 60);
 }
-let eX = 0;
-window.addEventListener('pointermove', e => { eX = e.clientX; }, { passive: true });
+let eX = 0, eY = 0;
+window.addEventListener('pointermove', e => { eX = e.clientX; eY = e.clientY; }, { passive: true });
 
 // Katalog sayfaları tek tek toleranslı çekilir: bir sayfa patlasa bile diğerlerinden içerik gelir.
 async function home() {
