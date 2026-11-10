@@ -8,7 +8,7 @@
 <style>
 :root{--bg:#000;--panel:#141414;--line:#2e2e2e;--text:#f3f3f3;--mute:#b3b3b3;--lamp:#ffc46b;--red:#e5050f;--err:#ff8a8a;color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
 h1,h2,h3{font-family:ui-serif,"New York",Georgia,serif;font-weight:600;margin:0}
 button,input,select{font:inherit;color:inherit}
 button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.45rem .9rem;cursor:pointer}
@@ -17,6 +17,7 @@ button:disabled{opacity:.6;cursor:default}
 button.primary{background:var(--lamp);color:#000;border-color:var(--lamp);font-weight:600}
 :focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 input,select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;width:100%}
+input,select,textarea,[contenteditable="true"]{-webkit-user-select:auto;-moz-user-select:auto;user-select:auto}
 /* Parola göster/gizle alanı */
 .pwf{position:relative;display:block}
 .pwf input{padding-right:2.6rem}
@@ -36,9 +37,11 @@ section h2{margin:1.8rem 0 .8rem}
 
 /* Afiş kartları */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1.2rem 1.1rem}
+.card{position:relative;-webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}
+.card *{-webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}
 .card .pw{position:relative}
-.pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden}
-.pb img,.ph{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.55)}
+.pb{display:block;width:100%;padding:0;border:0;background:none;border-radius:6px;overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.pb img,.ph{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.55);pointer-events:none;-webkit-user-drag:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .add{display:none !important;position:absolute;top:.4rem;right:.4rem;width:2rem;height:2rem;padding:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;border-color:rgba(255,255,255,.35);font-size:1.15rem;line-height:1;opacity:0;transition:opacity .15s}
 .card:hover .add,.add.on{opacity:1}
 .add.on{background:var(--lamp);color:#000;border-color:var(--lamp)}
@@ -236,13 +239,13 @@ header h1{order:0}nav{order:1}#q{order:2}#me{order:3}#logout{order:4}
 .rnav button:hover{background:#2a2a2a;border-color:#555}
 .rnav button:active{transform:scale(.92)}
 @media (max-width:700px){.rnav button{width:1.7rem;height:1.7rem;font-size:.9rem}}
-.railrow .card{flex:0 0 auto;width:158px;transition:transform .18s ease}
-.railrow .card img{pointer-events:none;-webkit-user-drag:none;user-select:none}
+.railrow .card{flex:0 0 auto;width:158px;transition:transform .18s ease;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.railrow .card img{pointer-events:none;-webkit-user-drag:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .railrow .card:hover,.railrow .card:focus-within{transform:scale(1.06);z-index:2}
 .railrow .pb img,.railrow .ph{aspect-ratio:2/3}
 @media (max-width:700px){.railrow .card{width:112px}.rail h3{font-size:1.05rem}}
 /* Afişte basılı tutma menüsü (TV + mobil) */
-.cardmenu{position:fixed;z-index:60;background:#181818;border:1px solid #3a3a3a;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.7);padding:.5rem;display:flex;flex-direction:column;gap:.35rem}
+.cardmenu{position:fixed;z-index:60;background:#181818;border:1px solid #3a3a3a;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.7);padding:.5rem;display:flex;flex-direction:column;gap:.35rem;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .cardmenu b{display:block;font-size:.85rem;padding:.25rem .4rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cardmenu button{display:block;width:100%;text-align:left;padding:.55rem .6rem;border:0;border-radius:8px;background:#262626;color:#f3f3f3;font:inherit;font-size:.9rem;cursor:pointer}
 .cardmenu button:hover,.cardmenu button:focus-visible{background:#333;outline:2px solid var(--lamp);outline-offset:-2px}
@@ -590,25 +593,49 @@ $('#main').addEventListener('click', e => {
   if (e.target.closest('.pb')) quickPlay(c.dataset.t, c.dataset.id, c);
 });
 
+// ---------- Mobil metin ve görsel seçme/sürükleme engelleme (iOS Safari basılı tutma koruması) ----------
+const isInputEl = el => !!(el && (el.nodeType === 1 ? el : el.parentElement)?.closest?.('input, textarea, select, [contenteditable="true"]'));
+document.addEventListener('selectstart', e => { if (!isInputEl(e.target)) e.preventDefault(); });
+document.addEventListener('dragstart', e => { if (!isInputEl(e.target)) e.preventDefault(); });
+const clearSelection = () => { try { window.getSelection?.()?.removeAllRanges?.(); } catch {} };
+document.addEventListener('selectionchange', () => {
+  const ae = document.activeElement;
+  if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return;
+  const sel = window.getSelection?.();
+  if (sel && !sel.isCollapsed && pressCard) clearSelection();
+});
+
 // ---------- Afişte basılı tutma menüsü (TV + mobil) ----------
 let cardPressT = null, cardPressAt = 0, pressCard = null;
-const clearPressTimer = () => { clearTimeout(cardPressT); cardPressT = null; };
+const clearPressTimer = () => { clearTimeout(cardPressT); cardPressT = null; pressCard = null; };
 $('#main').addEventListener('pointerdown', e => {
   if (!(matchMedia('(hover:none)').matches || tvMode())) return;
   if (e.pointerType === 'mouse' && !tvMode()) return;      // masaüstü fare: eski ayrı-hedef davranışı
   const c = e.target.closest('.card'); if (!c) return;
   if (e.target.closest('.rnav button')) return;            // satır kaydırma düğmeleri menüyü tetiklemesin
+  clearSelection();
   eX = e.clientX; eY = e.clientY;
-  pressCard = c;
   clearPressTimer();
-  cardPressT = setTimeout(() => { cardPressT = null; cardPressAt = Date.now(); openCardMenu(pressCard); }, 500);
+  pressCard = c;
+  cardPressT = setTimeout(() => {
+    cardPressT = null;
+    cardPressAt = Date.now();
+    clearSelection();
+    openCardMenu(pressCard);
+  }, 500);
 }, true);
 ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(ev =>
   window.addEventListener(ev, clearPressTimer, { passive: true, capture: ev === 'scroll' }));
 document.addEventListener('contextmenu', e => {
-  if (view === 'home' || e.target.closest('.card')) e.preventDefault();
+  if (view === 'home' || e.target.closest('.card')) {
+    e.preventDefault();
+    clearSelection();
+  }
   const c = e.target.closest('.card');
   if (c && !tvMode()) {
+    clearPressTimer();
+    cardPressAt = Date.now();
+    clearSelection();
     eX = e.clientX; eY = e.clientY;
     openCardMenu(c);
   }
@@ -616,6 +643,7 @@ document.addEventListener('contextmenu', e => {
 function closeCardMenu() { $('#cardMenu')?.remove(); }
 function openCardMenu(c) {
   closeCardMenu();
+  clearSelection();
   const id = c.dataset.id, m = META[id] || {}, type = c.dataset.t || m.type || 'movie';
   const on = inLib(id), hasProg = !!(D.progress[id]?.eps && Object.keys(D.progress[id].eps).length);
   const box = document.createElement('div');
