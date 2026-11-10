@@ -1,20 +1,20 @@
 # <img width="64" height="64" alt="theatre-curtains" src="https://github.com/user-attachments/assets/6b944a07-c13d-4d94-8ab7-8e967382a5a8" /> Perde 
 
 
-Node.js ile yerelde çalışan film/dizi arayüzü. Kaynaklar AIOStreams + AllDebrid + Opensubtitles.
+Node.js ile yerelde çalışan film/dizi arayüzü. Kaynaklar Torrentio + AllDebrid + Opensubtitles.
 
 ## Kurulum
 1. `brew install node ffmpeg`
 2. Bu klasörde `npm install` (hls.js'i yerel kurar; yapmazsanız CDN'den yüklenir)
 3. `node server.js`, sonra http://localhost:7777
-4. Ayarlar'a AIOStreams manifest adresinizi, Alldebrid ve OpenSubtitles API'nizi yapıştırın, kaydedin ve "Eklentiyi sına"ya basın.
+4. Ayarlar'a Torrentio manifest adresinizi, Alldebrid ve OpenSubtitles API'nizi yapıştırın, kaydedin ve "Eklentiyi sına"ya basın.
 
 ## Kullanıcılar ve erişim
 - **İlk kurulum:** Sunucuyu başlatın, **sunucunun çalıştığı bilgisayarda** `http://localhost:7777` adresini açın ve yönetici hesabını oluşturun. (İlk kurulum başka cihazlardan yapılamaz.)
 - **Giriş:** Herkes (yönetici dahil) kullanıcı adı ve parolayla girer; oturum 30 gün hatırlanır. 5 yanlış denemeden sonra 15 dakika kilitlenir.
-- **Yönetici:** "Kullanıcılar" sekmesinden kullanıcı ekler, parola belirler, yönetici yapar ya da siler. "Hesabım" sayfasında sunucu ayarlarını (AIOStreams adresi, OpenSubtitles) yönetir; bunları kullanıcılar göremez.
+- **Yönetici:** "Kullanıcılar" sekmesinden kullanıcı ekler, parola belirler, yönetici yapar ya da siler. "Hesabım" sayfasında sunucu ayarlarını (Torrentio adresi, OpenSubtitles) yönetir; bunları kullanıcılar göremez.
 - **Ayrı veri:** Her kullanıcının kütüphanesi ve izleme ilerlemesi ayrıdır (`data/` klasörü). Eski `data.json` varsa ilk yöneticiye taşınır.
-- **Kaynak adresleri tarayıcıya gitmez:** AIOStreams adresi (AllDebrid anahtarınız içinde) ve kaynak bağlantıları yalnızca sunucuda kalır; kullanıcılar süreli bir bilet görür.
+- **Kaynak adresleri tarayıcıya gitmez:** Torrentio adresi (AllDebrid anahtarınız içinde) ve kaynak bağlantıları yalnızca sunucuda kalır; kullanıcılar süreli bir bilet görür.
 - `node server.js` (veya `npm start`) sunucuyu ağdaki cihazlara açar: yerel ağda `http://192.168.x.x:7777`, Tailscale'de `http://100.x.x.x:7777`. macOS ilk seferde "node gelen bağlantılara izin versin mi?" diye sorar: İzin ver.
 - Güvenmediğiniz bir Wi-Fi'da (kafe, otel) yalnızca bu bilgisayara açmak için: `npm run local`.
 - Evin dışından erişmek için Tailscale gibi özel bir ağ en güvenlisidir. Doğrudan internete açarsanız (HTTPS yok) parolalar şifresiz gider; bunu yapmayın ya da önüne HTTPS sağlayan bir tünel/proxy koyun.
